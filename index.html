@@ -465,6 +465,12 @@
   .acc-menu button:hover { background: var(--surface-2); }
   .acc-menu button.danger { color: var(--neg); }
 
+  /* "Include in total balance" */
+  .check-row { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .chip.off { opacity: .75; display: inline-flex; align-items: center; gap: 4px; font-style: italic; }
+  .chip.off svg { width: 13px; height: 13px; }
+  #sumBalanceSub .link-btn { font-size: inherit; }
+
   /* Accounts page: reorder mode */
   .acc-grid.reordering { grid-template-columns: 1fr; gap: 8px; position: relative; }
   .reorder-card { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 2px; border-left: 4px solid var(--acc); position: relative; transition: transform .18s var(--dlg-ease), box-shadow .15s; }
@@ -664,6 +670,7 @@
           <div class="tile-label">Total balance</div>
           <div class="tile-value num" id="sumBalance">—</div>
           <div class="tile-sub" id="sumBalanceSub"></div>
+          <div class="tile-sub" id="sumExcluded" hidden></div>
         </div>
         <div class="card tile">
           <div class="tile-label">Spent this month</div>
@@ -968,6 +975,7 @@
         <input type="text" name="cards" inputmode="numeric" maxlength="60" placeholder="e.g. 1234, 5678" autocomplete="off">
       </label>
       <p class="tile-sub" style="margin:-8px 0 0">Detected purchases made with these cards are filed under this account automatically.</p>
+      <label class="check-row"><input type="checkbox" name="inTotal" checked> <span>Include in total balance</span></label>
       <div class="field"><span>Color</span><div class="swatches" id="accSwatches"></div></div>
     </div>
     <div class="dlg-foot">
@@ -1272,6 +1280,9 @@
 
   // ---------- Derived data ----------
   const accById = (id) => state.accounts.find((a) => a.id === id);
+  // "Include in total balance": on unless turned off, so existing and imported accounts count by default.
+  const inTotal = (a) => a.inTotal !== false;
+  const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.2 2.3-2.4 3.5M6.6 6.6C4.4 8 2.8 10.1 2 12c1 2.5 5 7 10 7 1.6 0 3.1-.4 4.4-1.1"/></svg>';
 
   // A transaction is { id, type: 'expense' | 'income' | 'transfer', amount (> 0), date, accountId, category, description }.
   // Transfers move money from accountId to toAccountId, have no category, and never count as spending or income.
@@ -1528,11 +1539,18 @@
   }
 
   function renderSummary() {
-    const total = state.accounts.reduce((s, a) => s + balanceOf(a), 0);
-    const noRate = foreignCurrencies().filter((c) => !rateFor(c));
+    // Only accounts marked "Include in total balance" count here; nothing else in the app looks at that setting.
+    const counted = state.accounts.filter(inTotal);
+    const excluded = state.accounts.filter((a) => !inTotal(a));
+    const total = counted.reduce((s, a) => s + balanceOf(a), 0);
+    const curs = [...new Set(counted.map(accCur).filter((c) => c !== BASE))];
+    const noRate = curs.filter((c) => !rateFor(c));
     $('#sumBalance').textContent = fmt(total);
-    $('#sumBalanceSub').textContent = `Across ${state.accounts.length} account${state.accounts.length === 1 ? '' : 's'}` +
-      (noRate.length ? ` · ${noRate.join(', ')} not included (no exchange rate yet)` : foreignCurrencies().length ? ' · converted at today’s rates' : '');
+    $('#sumBalanceSub').innerHTML = esc(`Across ${counted.length} account${counted.length === 1 ? '' : 's'}` +
+      (noRate.length ? ` · ${noRate.join(', ')} not included (no exchange rate yet)` : curs.length ? ' · converted at today’s rates' : '')) +
+      (excluded.length ? ` · <button type="button" class="link-btn" id="sumExcludedBtn" aria-expanded="${!$('#sumExcluded').hidden}">${excluded.length} account${excluded.length === 1 ? '' : 's'} excluded</button>` : '');
+    if (!excluded.length) $('#sumExcluded').hidden = true;
+    $('#sumExcluded').textContent = excluded.length ? `Not in total: ${excluded.map((a) => a.name).join(', ')}` : '';
 
     const { start, end } = rangeBounds('month');
     const monthTx = state.transactions.filter((t) => t.type === 'expense' && t.date >= start && t.date <= end);
@@ -1667,11 +1685,12 @@
       // The whole card opens Account details; its buttons (and the ⋮ menu) do their own thing instead.
       return `<div class="card acc-card clickable" style="--acc:${esc(a.color)}" data-account-details="${esc(a.id)}" role="button" tabindex="0" aria-label="Open ${esc(a.name)}">
         <div class="top">
-          <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span>${cur !== BASE ? ` <span class="chip">${cur}</span>` : ''}${(a.cards || []).map((c) => ` <span class="chip num" title="Linked card">•${esc(c)}</span>`).join('')}</div>
+          <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span>${cur !== BASE ? ` <span class="chip">${cur}</span>` : ''}${(a.cards || []).map((c) => ` <span class="chip num" title="Linked card">•${esc(c)}</span>`).join('')}${inTotal(a) ? '' : ` <span class="chip off" title="Not counted in the dashboard's total balance">${EYE_OFF}Not in total</span>`}</div>
           <div class="menu-wrap">
             <button class="btn ghost icon-btn sm" data-acc-menu="${esc(a.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for ${esc(a.name)}" title="More actions">⋮</button>
             <div class="card acc-menu" role="menu" hidden>
               <button role="menuitem" data-edit-account="${esc(a.id)}">Edit account</button>
+              <button role="menuitem" data-toggle-total="${esc(a.id)}">${inTotal(a) ? 'Exclude from total balance' : 'Include in total balance'}</button>
               <button role="menuitem" class="danger" data-delete-account="${esc(a.id)}">Delete account</button>
             </div>
           </div>
@@ -2743,6 +2762,7 @@
     f.dataset.cur = f.currency.value;
     $('#accStartLabel').textContent = `Starting balance (${f.currency.value})`;
     f.cards.value = acc && acc.cards ? acc.cards.join(', ') : '';
+    f.inTotal.checked = !acc || inTotal(acc);
     const used = state.accounts.map((a) => a.color.toLowerCase());
     accColor = acc ? acc.color : (ACCOUNT_SWATCHES.find((c) => !used.includes(c)) || ACCOUNT_SWATCHES[0]);
     renderSwatches();
@@ -2768,7 +2788,7 @@
     const cards = [...new Set(cardParts)];
     const clash = state.accounts.find((a) => a !== editingAcc && (a.cards || []).some((c) => cards.includes(c)));
     if (clash) { showFieldError(f.cards, `“${clash.name}” already uses ${cards.filter((c) => clash.cards.includes(c)).map((c) => '•' + c).join(', ')}.`); return; }
-    const data = { name, type: f.type.value, currency: f.currency.value || BASE, startBalance: sb, color: accColor, cards };
+    const data = { name, type: f.type.value, currency: f.currency.value || BASE, startBalance: sb, color: accColor, cards, inTotal: f.inTotal.checked };
     const acc = editingAcc;
     const oldCur = accCur(acc), newCur = data.currency;
     const txCount = acc ? state.transactions.filter((t) => touchesAccount(t, acc.id)).length : 0;
@@ -3029,7 +3049,7 @@
 
   document.addEventListener('click', (e) => {
     // The innermost match wins, so buttons inside an account card don't also open its details.
-    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-account-details],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget],[data-acc-menu],[data-delete-account]');
+    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-account-details],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget],[data-acc-menu],[data-delete-account],[data-toggle-total],#sumExcludedBtn');
     if (t && t.dataset.accMenu) {
       const menu = t.nextElementSibling;
       closeAccMenus(menu);
@@ -3041,6 +3061,19 @@
     if (e.target.closest('.acc-menu') && !t) return; // a tap on the menu's padding
     if (!t) return;
     if (t.dataset.deleteAccount) { const acc = accById(t.dataset.deleteAccount); if (acc) deleteAccount(acc); return; }
+    if (t.dataset.toggleTotal) {
+      const acc = accById(t.dataset.toggleTotal);
+      if (!acc) return;
+      acc.inTotal = !inTotal(acc);
+      commit(acc.inTotal ? `“${acc.name}” is included in the total balance` : `“${acc.name}” is excluded from the total balance`);
+      return;
+    }
+    if (t.id === 'sumExcludedBtn') {
+      const list = $('#sumExcluded');
+      list.hidden = !list.hidden;
+      t.setAttribute('aria-expanded', String(!list.hidden));
+      return;
+    }
     if (t.dataset.editTx) openTxDialog(state.transactions.find((x) => x.id === t.dataset.editTx));
     else if (t.dataset.editAccount) openAccDialog(accById(t.dataset.editAccount));
     else if (t.dataset.viewAccount) viewAccountTransactions(t.dataset.viewAccount);
