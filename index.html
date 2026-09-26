@@ -454,6 +454,17 @@
     dialog :is(input, select), .type-toggle label, .swatches button { transition: none !important; }
   }
 
+  /* Accounts page: tappable cards with a ⋮ menu */
+  .acc-card.clickable { cursor: pointer; transition: border-color .15s; }
+  .acc-card.clickable:hover { border-color: var(--muted); border-top-color: var(--acc); }
+  .acc-card.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .menu-wrap { position: relative; flex: none; margin: -6px -8px 0 0; }
+  .menu-wrap .icon-btn { font-size: 20px; line-height: 1; }
+  .acc-menu { position: absolute; right: 0; top: 36px; z-index: 30; min-width: 170px; padding: 4px; display: grid; box-shadow: 0 8px 28px rgba(0,0,0,.18); }
+  .acc-menu button { border: 0; background: none; text-align: left; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+  .acc-menu button:hover { background: var(--surface-2); }
+  .acc-menu button.danger { color: var(--neg); }
+
   /* Account details */
   .acc-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
   .acc-head h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -1630,9 +1641,17 @@
       const inc = txs.filter((t) => t.type === 'income').reduce((s, t) => s + effectOn(t, a.id), 0);
       const exp = -txs.filter((t) => t.type === 'expense').reduce((s, t) => s + effectOn(t, a.id), 0);
       const moved = txs.filter(isTransfer).reduce((s, t) => s + effectOn(t, a.id), 0);
-      return `<div class="card acc-card" style="--acc:${esc(a.color)}">
+      // The whole card opens Account details; its buttons (and the ⋮ menu) do their own thing instead.
+      return `<div class="card acc-card clickable" style="--acc:${esc(a.color)}" data-account-details="${esc(a.id)}" role="button" tabindex="0" aria-label="Open ${esc(a.name)}">
         <div class="top">
           <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span>${cur !== BASE ? ` <span class="chip">${cur}</span>` : ''}${(a.cards || []).map((c) => ` <span class="chip num" title="Linked card">•${esc(c)}</span>`).join('')}</div>
+          <div class="menu-wrap">
+            <button class="btn ghost icon-btn sm" data-acc-menu="${esc(a.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for ${esc(a.name)}" title="More actions">⋮</button>
+            <div class="card acc-menu" role="menu" hidden>
+              <button role="menuitem" data-edit-account="${esc(a.id)}">Edit account</button>
+              <button role="menuitem" class="danger" data-delete-account="${esc(a.id)}">Delete account</button>
+            </div>
+          </div>
         </div>
         <div><div class="tile-label">Current balance</div><div class="bal num">${money(nativeBalance(a))}</div>
           ${cur !== BASE ? `<div class="tile-sub num">${esc(sarEquivalent(a))}</div>` : ''}</div>
@@ -1644,8 +1663,6 @@
           <dt>Transactions</dt><dd>${txs.length}</dd>
         </dl>
         <div class="actions">
-          <button class="btn sm" data-edit-account="${esc(a.id)}">Edit</button>
-          <button class="btn sm" data-account-details="${esc(a.id)}">Details</button>
           <button class="btn sm" data-view-account="${esc(a.id)}">Transactions</button>
           <button class="btn sm" data-add-tx-account="${esc(a.id)}">+ Transaction</button>
         </div>
@@ -2044,6 +2061,8 @@
 
   function openAccountDetails(id) {
     if (!accById(id)) return;
+    // Remember where we came from (dashboard or Accounts page, and how far down) for the back button.
+    if (ui.tab !== 'account') ui.accountFrom = { tab: ui.tab, scrollY: window.scrollY };
     ui.accountId = id;
     ui.accFilters = { q: '', category: 'all', type: 'all' };
     $('#adSearch').value = '';
@@ -2215,7 +2234,20 @@
     }
   }
 
-  $('#adBack').addEventListener('click', () => setTab('dashboard'));
+  /** Back from Account details to the page it was opened from, at the same scroll position. */
+  function closeAccountDetails() {
+    const from = ui.accountFrom || { tab: 'dashboard', scrollY: 0 };
+    setTab(from.tab === 'account' ? 'dashboard' : from.tab);
+    window.scrollTo({ top: from.scrollY || 0 });
+  }
+  $('#adBack').addEventListener('click', closeAccountDetails);
+  // Account cards act as buttons from the keyboard too.
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.acc-card[data-account-details]')) {
+      e.preventDefault();
+      openAccountDetails(e.target.dataset.accountDetails);
+    } else if (e.key === 'Escape') closeAccMenus();
+  });
   $('#adEdit').addEventListener('click', () => openAccDialog(accById(ui.accountId)));
   $('#adAdd').addEventListener('click', () => openTxDialog(null, ui.accountId));
   $('#adRangeSeg').addEventListener('click', (e) => {
@@ -2652,19 +2684,24 @@
   });
   $('#accDelete').addEventListener('click', async () => {
     if (!editingAcc) return;
-    const n = state.transactions.filter((t) => touchesAccount(t, editingAcc.id)).length;
     $('#accDialog').close();
-    const nb = state.budgets.filter((b) => b.accounts !== 'all' && b.accounts.includes(editingAcc.id)).length;
-    const ok = await confirmAsk('Delete account?', `“${editingAcc.name}” and its ${n} transaction${n === 1 ? '' : 's'} will be permanently removed.` +
-      (nb ? ` It will also be removed from ${nb} budget${nb === 1 ? '' : 's'}.` : ''), 'Delete account');
-    if (ok) {
-      const id = editingAcc.id;
-      state.accounts = state.accounts.filter((a) => a.id !== id);
-      state.transactions = state.transactions.filter((t) => !touchesAccount(t, id));
-      state.budgets.forEach((b) => { if (b.accounts !== 'all') b.accounts = b.accounts.filter((x) => x !== id); });
-      commit('Account deleted');
-    } else $('#accDialog').showModal();
+    if (!(await deleteAccount(editingAcc))) $('#accDialog').showModal();
   });
+
+  /** Asks, then deletes an account with its transactions. Returns whether it was deleted. */
+  async function deleteAccount(acc) {
+    const n = state.transactions.filter((t) => touchesAccount(t, acc.id)).length;
+    const nb = state.budgets.filter((b) => b.accounts !== 'all' && b.accounts.includes(acc.id)).length;
+    const ok = await confirmAsk('Delete account?', `“${acc.name}” and its ${n} transaction${n === 1 ? '' : 's'} will be permanently removed.` +
+      (nb ? ` It will also be removed from ${nb} budget${nb === 1 ? '' : 's'}.` : ''), 'Delete account');
+    if (!ok) return false;
+    const id = acc.id;
+    state.accounts = state.accounts.filter((a) => a.id !== id);
+    state.transactions = state.transactions.filter((t) => !touchesAccount(t, id));
+    state.budgets.forEach((b) => { if (b.accounts !== 'all') b.accounts = b.accounts.filter((x) => x !== id); });
+    commit('Account deleted');
+    return true;
+  }
 
   // ---------- CSV export ----------
   async function exportCSV() {
@@ -2848,9 +2885,25 @@
   document.addEventListener('input', clearOwnError);
   document.addEventListener('change', clearOwnError);
 
+  // Account card ⋮ menus: one open at a time; any other tap closes it.
+  function closeAccMenus(except) {
+    $$('.acc-menu').forEach((m) => { if (m !== except) { m.hidden = true; m.previousElementSibling.setAttribute('aria-expanded', 'false'); } });
+  }
+
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-account-details],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget]');
+    // The innermost match wins, so buttons inside an account card don't also open its details.
+    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-account-details],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget],[data-acc-menu],[data-delete-account]');
+    if (t && t.dataset.accMenu) {
+      const menu = t.nextElementSibling;
+      closeAccMenus(menu);
+      menu.hidden = !menu.hidden;
+      t.setAttribute('aria-expanded', String(!menu.hidden));
+      return;
+    }
+    closeAccMenus();
+    if (e.target.closest('.acc-menu') && !t) return; // a tap on the menu's padding
     if (!t) return;
+    if (t.dataset.deleteAccount) { const acc = accById(t.dataset.deleteAccount); if (acc) deleteAccount(acc); return; }
     if (t.dataset.editTx) openTxDialog(state.transactions.find((x) => x.id === t.dataset.editTx));
     else if (t.dataset.editAccount) openAccDialog(accById(t.dataset.editAccount));
     else if (t.dataset.viewAccount) viewAccountTransactions(t.dataset.viewAccount);
@@ -3860,6 +3913,8 @@
       const openDialog = $$('dialog').filter((d) => d.open && !d.classList.contains('closing')).pop();
       if (openDialog) openDialog.close();
       else if (!$('#notifPanel').hidden) toggleNotifPanel(false);
+      else if ($$('.acc-menu').some((m) => !m.hidden)) closeAccMenus();
+      else if (ui.tab === 'account') closeAccountDetails();
       else if (ui.tab !== 'dashboard') setTab('dashboard');
       else NativeApp.exitApp();
     });
