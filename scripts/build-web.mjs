@@ -25,8 +25,11 @@ html = html.replace(FONT_TAG, LOCAL_FONT);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, 'index.html'), html);
-copyFileSync(join(root, 'node_modules/chart.js/dist/chart.umd.js'), join(out, 'chart.umd.js'));
-copyFileSync(join(root, 'node_modules/@capacitor/core/dist/capacitor.js'), join(out, 'capacitor.js'));
+// Library scripts, without their "//# sourceMappingURL=" line: the .map files aren't shipped.
+const copyScript = (from, to) =>
+  writeFileSync(join(out, to), readFileSync(join(root, from), 'utf8').replace(/\n?\/\/# sourceMappingURL=\S+\s*$/, '\n'));
+copyScript('node_modules/chart.js/dist/chart.umd.js', 'chart.umd.js');
+copyScript('node_modules/@capacitor/core/dist/capacitor.js', 'capacitor.js');
 copyFileSync(join(root, FONT_DIR, 'manrope-latin-wght-normal.woff2'), join(out, 'manrope-latin.woff2'));
 copyFileSync(join(root, FONT_DIR, 'manrope-latin-ext-wght-normal.woff2'), join(out, 'manrope-latin-ext.woff2'));
 copyFileSync(join(root, 'monefy-import.js'), join(out, 'monefy-import.js'));
