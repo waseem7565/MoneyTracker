@@ -237,14 +237,20 @@
   .acc-card .actions { display: flex; gap: 6px; margin-top: auto; flex-wrap: wrap; }
   .add-card { display: grid; place-items: center; min-height: 180px; border-style: dashed; color: var(--text-2); cursor: pointer; background: transparent; box-shadow: none; }
   .add-card:hover { background: var(--surface); }
-  .cats { padding: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .cat-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 10px; border-radius: 999px; background: var(--surface-2); font-size: 14px; }
-  .cat-chip .key { width: 8px; height: 8px; border-radius: 50%; }
-  .cat-chip button { border: 0; background: none; cursor: pointer; color: var(--muted); width: 22px; height: 22px; border-radius: 50%; line-height: 1; }
-  .cat-chip button:hover { background: var(--border); color: var(--text); }
-  .cat-chip.fixed { padding-right: 10px; }
-  .cat-add { display: flex; gap: 6px; flex: 1 1 220px; }
+  .cat-list { overflow: hidden; }
+  .cat-item {
+    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px;
+    border: 0; border-top: 1px solid var(--border); background: none; text-align: left; cursor: pointer;
+  }
+  .cat-item:first-child { border-top: 0; }
+  .cat-item:hover { background: var(--surface-2); }
+  .cat-item .key { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+  .cat-item .name { font-weight: 500; overflow-wrap: anywhere; }
+  .cat-item .meta { font-size: 12.5px; color: var(--muted); }
+  .cat-item .chev { color: var(--muted); font-size: 22px; line-height: 1; }
+  .cat-add { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
   .cat-add input { flex: 1; }
+  .swatches button.auto { width: auto; padding: 0 12px; border-radius: 999px; font-size: 13px; background: var(--surface-2); }
 
   /* Budgets */
   .progress { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
@@ -563,7 +569,8 @@
     <div class="acc-grid" id="accGrid"></div>
 
     <h2 class="section">Categories</h2>
-    <div class="card cats" id="catList"></div>
+    <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
+    <div class="card cat-list" id="catList"></div>
   </section>
 </main>
 
@@ -634,6 +641,33 @@
       <button type="button" class="btn danger left" id="accDelete" hidden>Delete</button>
       <button type="button" class="btn" data-close>Cancel</button>
       <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Category dialog -->
+<dialog id="catDialog">
+  <form id="catForm" novalidate>
+    <div class="dlg-head"><h3 id="catDlgTitle">Edit category</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
+    <div class="dlg-body" id="catEditBody">
+      <label class="field"><span>Name</span><input type="text" name="name" maxlength="30" required></label>
+      <p class="tile-sub" id="catOtherNote" hidden style="margin:0">“Other” is the fallback category, so it can’t be renamed or deleted. You can still change its color.</p>
+      <div class="field"><span>Color</span><div class="swatches" id="catSwatches"></div></div>
+      <p class="tile-sub" id="catUsage" style="margin:0"></p>
+      <p class="err" id="catErr"></p>
+    </div>
+    <div class="dlg-body" id="catDeleteBody" hidden>
+      <p id="catDeleteMsg" style="margin:0;color:var(--text-2)"></p>
+      <label class="field"><span>Move them to</span><select name="moveTo"></select></label>
+    </div>
+    <div class="dlg-foot" id="catEditFoot">
+      <button type="button" class="btn danger left" id="catDelete">Delete</button>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+    <div class="dlg-foot" id="catDeleteFoot" hidden>
+      <button type="button" class="btn" id="catDeleteBack">Back</button>
+      <button type="button" class="btn primary" id="catDeleteConfirm" style="background:var(--neg);border-color:var(--neg)">Delete and move</button>
     </div>
   </form>
 </dialog>
@@ -765,6 +799,7 @@
         if (s && Array.isArray(s.accounts) && Array.isArray(s.transactions)) {
           s.categories = Array.isArray(s.categories) && s.categories.length ? s.categories : DEFAULT_CATEGORIES.slice();
           if (!s.categories.includes('Other')) s.categories.push('Other');
+          s.categoryColors = s.categoryColors && typeof s.categoryColors === 'object' ? s.categoryColors : {};
           s.budgets = Array.isArray(s.budgets) ? s.budgets : [];
           s.notifications = Array.isArray(s.notifications) ? s.notifications : [];
           if (!s.budgetsSeeded) {
@@ -778,7 +813,7 @@
       }
     } catch (e) { storageOk = false; }
     // First visit: start with sample data.
-    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
+    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
   }
 
   function save() {
@@ -872,15 +907,18 @@
     return b;
   }
 
+  // A color picked in Manage categories wins; otherwise the category gets its palette slot by position.
   function catColor(name) {
+    if (state.categoryColors[name]) return state.categoryColors[name];
     const mode = isDark() ? 'dark' : 'light';
     const named = state.categories.filter((c) => c !== 'Other');
     const i = named.indexOf(name);
     if (name === 'Other' || i < 0 || i >= PALETTE[mode].length) return OTHER_GRAY[mode];
     return PALETTE[mode][i];
   }
-  // Categories past the 8 palette slots fold into "Other" in charts.
+  // Categories past the 8 palette slots fold into "Other" in charts, unless they have their own color.
   function chartCat(name) {
+    if (state.categoryColors[name]) return name;
     const named = state.categories.filter((c) => c !== 'Other');
     const i = named.indexOf(name);
     return i < 0 || i >= PALETTE.light.length ? 'Other' : name;
@@ -1128,11 +1166,16 @@
   }
 
   function renderCategories() {
-    const chips = state.categories.map((c) => {
-      const fixed = DEFAULT_CATEGORIES.includes(c);
-      return `<span class="cat-chip ${fixed ? 'fixed' : ''}"><span class="key" style="background:${catColor(c)}"></span>${esc(c)}${fixed ? '' : `<button data-del-cat="${esc(c)}" aria-label="Delete category ${esc(c)}" title="Delete">✕</button>`}</span>`;
+    const rows = state.categories.map((c) => {
+      const u = categoryUsage(c);
+      const meta = [`${u.tx} transaction${u.tx === 1 ? '' : 's'}`, u.budgets && `${u.budgets} budget${u.budgets === 1 ? '' : 's'}`, c === 'Other' && 'fallback'].filter(Boolean).join(' · ');
+      return `<button class="cat-item" data-edit-cat="${esc(c)}" aria-label="Edit category ${esc(c)}">
+        <span class="key" style="background:${esc(catColor(c))}"></span>
+        <span class="grow"><div class="name">${esc(c)}</div><div class="meta">${meta}</div></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>`;
     }).join('');
-    $('#catList').innerHTML = chips + `<form class="cat-add" id="catAddForm"><input type="text" id="catAddInput" maxlength="30" placeholder="New category…" aria-label="New category name"><button class="btn" type="submit">Add</button></form>`;
+    $('#catList').innerHTML = rows + `<form class="cat-add" id="catAddForm"><input type="text" id="catAddInput" maxlength="30" placeholder="New category…" aria-label="New category name"><button class="btn" type="submit">Add</button></form>`;
   }
 
   // ---------- Budgets: rendering ----------
@@ -1527,9 +1570,44 @@
   }
 
   // ---------- Categories ----------
+  const cleanCatName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
+  // "all" is the filters' and budgets' value for "every category", so it can't be a category name.
+  const isReservedCatName = (name) => name.toLowerCase() === 'all';
+
+  function categoryNameError(name, current) {
+    if (!name) return 'Enter a category name.';
+    if (isReservedCatName(name)) return '“all” is reserved. Choose another name.';
+    const clash = state.categories.find((c) => c !== current && c.toLowerCase() === name.toLowerCase());
+    return clash ? `A category called “${clash}” already exists.` : '';
+  }
+
+  function categoryUsage(name) {
+    return {
+      tx: state.transactions.filter((t) => t.category === name).length,
+      budgets: state.budgets.filter((b) => b.category === name).length
+    };
+  }
+
+  // Renames in place, so transactions, budgets, the category's color and an active filter all follow it.
+  function renameCategory(from, to) {
+    state.categories = state.categories.map((c) => (c === from ? to : c));
+    state.transactions.forEach((t) => { if (t.category === from) t.category = to; });
+    state.budgets.forEach((b) => { if (b.category === from) b.category = to; });
+    if (state.categoryColors[from]) { state.categoryColors[to] = state.categoryColors[from]; delete state.categoryColors[from]; }
+    if (ui.filters.category === from) ui.filters.category = to;
+  }
+
+  function removeCategory(name, moveTo) {
+    state.categories = state.categories.filter((c) => c !== name);
+    state.transactions.forEach((t) => { if (t.category === name) t.category = moveTo; });
+    state.budgets.forEach((b) => { if (b.category === name) b.category = moveTo; });
+    delete state.categoryColors[name];
+    if (ui.filters.category === name) ui.filters.category = 'all';
+  }
+
   function addCategory(name) {
-    name = name.trim().replace(/\s+/g, ' ');
-    if (!name) return null;
+    name = cleanCatName(name);
+    if (!name || isReservedCatName(name)) return null;
     const existing = state.categories.find((c) => c.toLowerCase() === name.toLowerCase());
     if (existing) return existing;
     const i = state.categories.indexOf('Other');
@@ -1731,7 +1809,7 @@
   }));
 
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-add-tx-account],[data-action],[data-del-cat],[data-goto],[data-budget-detail],[data-edit-budget]');
+    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget]');
     if (!t) return;
     if (t.dataset.editTx) openTxDialog(state.transactions.find((x) => x.id === t.dataset.editTx));
     else if (t.dataset.editAccount) openAccDialog(accById(t.dataset.editAccount));
@@ -1742,26 +1820,98 @@
     else if (t.dataset.goto) setTab(t.dataset.goto);
     else if (t.dataset.budgetDetail) openBudgetDetail(t.dataset.budgetDetail);
     else if (t.dataset.editBudget) openBudgetDialog(budgetById(t.dataset.editBudget));
-    else if (t.dataset.delCat) deleteCategory(t.dataset.delCat);
+    else if (t.dataset.editCat !== undefined) openCatDialog(t.dataset.editCat);
   });
-
-  async function deleteCategory(name) {
-    const n = state.transactions.filter((t) => t.category === name).length;
-    const nb = state.budgets.filter((b) => b.category === name).length;
-    const ok = await confirmAsk('Delete category?', (n ? `${n} transaction${n === 1 ? '' : 's'} in “${name}” will move to “Other”.` : `“${name}” will be removed.`) +
-      (nb ? ` ${nb} budget${nb === 1 ? '' : 's'} tracking it will track “Other” instead.` : ''), 'Delete');
-    if (!ok) return;
-    state.categories = state.categories.filter((c) => c !== name);
-    state.transactions.forEach((t) => { if (t.category === name) t.category = 'Other'; });
-    state.budgets.forEach((b) => { if (b.category === name) b.category = 'Other'; });
-    commit();
-  }
 
   document.addEventListener('submit', (e) => {
     if (e.target.id !== 'catAddForm') return;
     e.preventDefault();
-    const name = addCategory($('#catAddInput').value);
-    if (name) { renderAll(); toast(`Category “${name}” added`); }
+    const name = cleanCatName($('#catAddInput').value);
+    const err = categoryNameError(name, null);
+    if (err) { toast(err); $('#catAddInput').focus(); return; }
+    addCategory(name);
+    commit(`Category “${name}” added`);
+  });
+
+  // ---------- Category dialog ----------
+  let editingCat = null;
+  let catColorChoice = null; // null = automatic palette color
+  function renderCatSwatches() {
+    const choices = PALETTE.light.concat(OTHER_GRAY.light);
+    const current = catColorChoice && catColorChoice.toLowerCase();
+    $('#catSwatches').innerHTML =
+      `<button type="button" class="auto" data-cat-color="" aria-pressed="${!current}" title="Use the automatic chart color">Auto</button>` +
+      choices.map((c) => `<button type="button" data-cat-color="${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${c === current}"></button>`).join('') +
+      `<input type="color" id="catCustomColor" value="${esc(catColorChoice || catColor(editingCat))}" title="Custom color" aria-label="Custom color" ${current && !choices.includes(current) ? 'style="box-shadow:0 0 0 2px var(--text)"' : ''}>`;
+  }
+  function setCatDeleteMode(on) {
+    $('#catEditBody').hidden = $('#catEditFoot').hidden = on;
+    $('#catDeleteBody').hidden = $('#catDeleteFoot').hidden = !on;
+    $('#catDlgTitle').textContent = on ? `Delete “${editingCat}”?` : 'Edit category';
+  }
+  function openCatDialog(name) {
+    if (!state.categories.includes(name)) return;
+    editingCat = name;
+    catColorChoice = state.categoryColors[name] || null;
+    const f = $('#catForm');
+    const isOther = name === 'Other';
+    f.name.value = name;
+    f.name.disabled = isOther;
+    $('#catOtherNote').hidden = !isOther;
+    $('#catDelete').hidden = isOther;
+    $('#catErr').textContent = '';
+    const u = categoryUsage(name);
+    $('#catUsage').textContent = `Used by ${u.tx} transaction${u.tx === 1 ? '' : 's'}${u.budgets ? ` and ${u.budgets} budget${u.budgets === 1 ? '' : 's'}` : ''}. Renaming updates them all.`;
+    renderCatSwatches();
+    setCatDeleteMode(false);
+    $('#catDialog').showModal();
+  }
+  $('#catSwatches').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-cat-color]');
+    if (b) { catColorChoice = b.dataset.catColor || null; renderCatSwatches(); }
+  });
+  $('#catSwatches').addEventListener('change', (e) => {
+    if (e.target.id === 'catCustomColor') { catColorChoice = e.target.value; renderCatSwatches(); }
+  });
+  $('#catForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!$('#catDeleteBody').hidden) return; // Enter in the delete step shouldn't save
+    const from = editingCat;
+    const name = from === 'Other' ? 'Other' : cleanCatName(e.target.name.value);
+    const err = categoryNameError(name, from);
+    if (err) { $('#catErr').textContent = err; e.target.name.focus(); return; }
+    if (name !== from) renameCategory(from, name);
+    if (catColorChoice) state.categoryColors[name] = catColorChoice;
+    else delete state.categoryColors[name];
+    $('#catDialog').close();
+    commit(name !== from ? `Renamed “${from}” to “${name}”` : 'Category updated');
+  });
+  $('#catDelete').addEventListener('click', async () => {
+    const name = editingCat;
+    const u = categoryUsage(name);
+    if (!u.tx && !u.budgets) {
+      $('#catDialog').close();
+      if (await confirmAsk('Delete category?', `“${name}” isn’t used by any transactions or budgets.`, 'Delete')) {
+        removeCategory(name, 'Other');
+        commit(`Category “${name}” deleted`);
+      } else $('#catDialog').showModal();
+      return;
+    }
+    const parts = [u.tx && `${u.tx} transaction${u.tx === 1 ? '' : 's'}`, u.budgets && `${u.budgets} budget${u.budgets === 1 ? '' : 's'}`].filter(Boolean).join(' and ');
+    $('#catDeleteMsg').textContent = `${parts} use${u.tx + u.budgets === 1 ? 's' : ''} “${name}”. Choose a category to move ${u.tx + u.budgets === 1 ? 'it' : 'them'} to before it’s deleted.`;
+    const sel = $('#catForm').moveTo;
+    sel.innerHTML = state.categories.filter((c) => c !== name).map((c) => `<option>${esc(c)}</option>`).join('');
+    sel.value = 'Other';
+    setCatDeleteMode(true);
+    sel.focus();
+  });
+  $('#catDeleteBack').addEventListener('click', () => setCatDeleteMode(false));
+  $('#catDeleteConfirm').addEventListener('click', () => {
+    const name = editingCat, to = $('#catForm').moveTo.value;
+    if (!to || to === name || !state.categories.includes(to)) return;
+    removeCategory(name, to);
+    $('#catDialog').close();
+    commit(`Deleted “${name}”. Its items moved to “${to}”.`);
   });
 
   $('#chartAccount').addEventListener('change', (e) => { ui.chartAccount = e.target.value; renderCharts(); });
@@ -1892,7 +2042,7 @@
     state.budgets.forEach((b) => { if (b.accounts !== 'all') b.accounts = b.accounts.filter((id) => !sampleAccIds.has(id)); });
     state.notifications = state.notifications.filter((n) => budgetById(n.budgetId));
     // Drop the sample-only "Salary" category if nothing uses it.
-    if (!state.transactions.some((t) => t.category === 'Salary') && !DEFAULT_CATEGORIES.includes('Salary')) state.categories = state.categories.filter((c) => c !== 'Salary');
+    if (!state.transactions.some((t) => t.category === 'Salary') && !state.budgets.some((b) => b.category === 'Salary') && state.categories.includes('Salary')) removeCategory('Salary', 'Other');
     ui.chartAccount = 'all';
     ui.filters.account = 'all';
     commit('Sample data cleared');
