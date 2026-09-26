@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground (108dp canvas): the app's own foreground, plus the "+" badge kept inside the icon mask. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:width="108dp" android:height="108dp">
+        <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="16.7%" />
+    </item>
+    <item
+        android:width="30dp"
+        android:height="30dp"
+        android:left="52dp"
+        android:top="52dp"
+        android:drawable="@drawable/ic_quick_add_badge" />
+</layer-list>

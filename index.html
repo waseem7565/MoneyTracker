@@ -454,6 +454,9 @@
     dialog :is(input, select), .type-toggle label, .swatches button { transition: none !important; }
   }
 
+  /* Quick add (the "Add Transaction" launcher): only the add pop-up and its toast; no balances or history behind it. */
+  body.quick-add > header, body.quick-add > main, body.quick-add .fab, body.quick-add .alerts { display: none !important; }
+
   /* Accounts page: tappable cards with a ⋮ menu */
   .acc-card.clickable { cursor: pointer; transition: border-color .15s; }
   .acc-card.clickable:hover { border-color: var(--muted); border-top-color: var(--acc); }
@@ -1296,6 +1299,9 @@
   const NativeFS = nativePlugin('Filesystem');
   const NativeShare = nativePlugin('Share');
   const NativeApp = nativePlugin('App');
+  // Opened from the "Add Transaction" launcher (android QuickAddActivity): show only the add pop-up, then close.
+  const QUICK_ADD = new URLSearchParams(location.search).has('quickAdd');
+  const QuickAddNative = nativePlugin('QuickAdd');
 
   let toastTimer;
   function toast(msg) {
@@ -1309,10 +1315,12 @@
   // ---------- State & persistence ----------
   let state = null;
   let storageOk = true;
+  let lastSavedRaw = null; // what this page last read or wrote, to notice changes made elsewhere (the quick-add launcher)
 
   function load() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
+      lastSavedRaw = raw;
       if (raw) {
         const s = JSON.parse(raw);
         if (s && Array.isArray(s.accounts) && Array.isArray(s.transactions)) {
@@ -1343,7 +1351,7 @@
   function save() {
     // state.accounts is kept in display order (new and imported accounts go to the end); store it on each account.
     state.accounts.forEach((a, i) => { a.order = i; });
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    try { const raw = JSON.stringify(state); localStorage.setItem(STORE_KEY, raw); lastSavedRaw = raw; }
     catch (e) {
       if (storageOk) toast('Could not save — your browser is blocking local storage.');
       storageOk = false;
@@ -2220,6 +2228,7 @@
   }
 
   function showAlert(n) {
+    if (QUICK_ADD) return; // quick add can run over the lock screen: budget details only go to the (lock-screen aware) notification
     const el = document.createElement('div');
     el.className = 'alert' + (n.level >= 100 ? ' over' : '');
     el.setAttribute('role', 'alert');
@@ -4287,6 +4296,41 @@
       </dl>${extra}`;
   });
 
+  // ---------- Quick add (the "Add Transaction" launcher) ----------
+  // Shows only the add pop-up: no dashboard, balances or history (it can open over the lock screen). The most used
+  // account and category are preselected with today's date; saving adds the transaction through the normal path
+  // (so budgets and budget notifications update), shows a short confirmation and closes. Cancel or back closes too.
+  function startQuickAdd() {
+    document.body.classList.add('quick-add');
+    ui.tab = 'quick-add'; // nothing on the (hidden) dashboard needs drawing
+    state = load();
+    paintThemeBtn();
+    const close = () => { if (QuickAddNative) QuickAddNative.close(); else location.href = location.pathname; };
+    if (!state.accounts.length) { toast('Add an account in the app first.'); setTimeout(close, 2200); return; }
+    refreshNotifPerm(); // so a budget alert from this transaction can reach the phone
+
+    const mostUsed = (keys) => {
+      const n = {};
+      keys.forEach((k) => { n[k] = (n[k] || 0) + 1; });
+      return Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+    };
+    const account = mostUsed(state.transactions.filter((t) => !isTransfer(t) && accById(t.accountId)).map((t) => t.accountId)) || state.accounts[0].id;
+    const category = mostUsed(state.transactions.filter((t) => t.type === 'expense' && state.categories.includes(t.category)).map((t) => t.category));
+
+    const count = state.transactions.length;
+    openTxDialog(null, account);
+    if (category) { $('#txForm').category.value = category; }
+    const dlg = $('#txDialog');
+    dlg.addEventListener('close', () => {
+      if (state.transactions.length > count) setTimeout(close, 1300); // saved: let the "Transaction added" toast show first
+      else close();
+    });
+    // Cursor in the amount field with the number keyboard open.
+    setTimeout(() => { $('#txForm').amount.focus(); if (QuickAddNative) QuickAddNative.showKeyboard().catch(() => {}); }, 120);
+    if (NativeApp) NativeApp.addListener('backButton', () => { const open = $$('dialog').filter((d) => d.open).pop(); if (open) open.close(); else close(); });
+  }
+  if (QUICK_ADD) { startQuickAdd(); return; }
+
   // ---------- Init ----------
   state = load();
   paintThemeBtn();
@@ -4314,7 +4358,12 @@
   setInterval(checkMonthRollover, 60 * 1000);
   // Exchange rates: fetched at most once a day, and only when an account uses another currency.
   const updateRates = (force) => refreshRates(force).then((ok) => { if (ok) renderAll(); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthRollover(); refreshNotifPerm(); refreshPending(); refreshDetect(); updateRates(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    // A transaction added from the "Add Transaction" launcher meanwhile: pick it up instead of overwriting it.
+    try { const raw = localStorage.getItem(STORE_KEY); if (raw && raw !== lastSavedRaw) { state = load(); renderAll(); } } catch (e) {}
+    checkMonthRollover(); refreshNotifPerm(); refreshPending(); refreshDetect(); updateRates();
+  });
   updateRates();
 
   renderBackupRow();

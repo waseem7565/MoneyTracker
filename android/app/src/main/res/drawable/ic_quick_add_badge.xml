@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The "+" badge on the Add Transaction launcher icon: a white-ringed blue circle with a white plus. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="30dp"
+    android:height="30dp"
+    android:viewportWidth="30"
+    android:viewportHeight="30">
+    <path android:fillColor="#FFFFFF" android:pathData="M15,0a15,15 0,1 1,0 30a15,15 0,1 1,0 -30z" />
+    <path android:fillColor="#2A78D6" android:pathData="M15,2.5a12.5,12.5 0,1 1,0 25a12.5,12.5 0,1 1,0 -25z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M13.6,8.5h2.8v5.1h5.1v2.8h-5.1v5.1h-2.8v-5.1h-5.1v-2.8h5.1z" />
+</vector>

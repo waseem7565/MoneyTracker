@@ -4,4 +4,5 @@
     <string name="title_activity_main">Expense Tracker</string>
     <string name="package_name">com.myname.expensetracker</string>
     <string name="custom_url_scheme">com.myname.expensetracker</string>
+    <string name="quick_add_label">Add Transaction</string>
 </resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Add Transaction" launcher icon for Android 7 (no adaptive icons): the app icon with a "+" badge. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@mipmap/ic_launcher" />
+    <item
+        android:width="20dp"
+        android:height="20dp"
+        android:gravity="bottom|end"
+        android:drawable="@drawable/ic_quick_add_badge" />
+</layer-list>
