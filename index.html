@@ -1623,10 +1623,13 @@
     yes.textContent = yesLabel;
     yes.style.background = yes.style.borderColor = danger ? 'var(--neg)' : '';
     return new Promise((resolve) => {
-      let result = false;
-      yes.onclick = () => { result = true; dlg.close(); };
-      $('#confirmNo').onclick = () => dlg.close();
-      dlg.onclose = () => { dlg.onclose = null; resolve(result); };
+      // Answer as soon as a button is tapped, so the action doesn't wait for the close animation.
+      // Closing any other way (X, backdrop, Esc, back button) counts as Cancel.
+      let settled = false;
+      const answer = (value) => { if (!settled) { settled = true; resolve(value); } };
+      yes.onclick = () => { answer(true); dlg.close(); };
+      $('#confirmNo').onclick = () => { answer(false); dlg.close(); };
+      dlg.onclose = () => { dlg.onclose = null; answer(false); };
       dlg.showModal();
     });
   }
