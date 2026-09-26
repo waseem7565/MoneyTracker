@@ -137,6 +137,8 @@
     padding: 10px 14px; margin-bottom: 16px; font-size: 14px;
   }
   .banner p { margin: 0; flex: 1 1 240px; }
+  .banner .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .banner.bad { background: color-mix(in srgb, var(--neg) 10%, var(--surface)); border-color: color-mix(in srgb, var(--neg) 45%, transparent); }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 
@@ -680,6 +682,7 @@
 </header>
 
 <main>
+  <div class="banner bad" id="dataBanner" role="alert" hidden></div>
   <div class="banner" id="sampleBanner" hidden>
     <p><strong>You're looking at sample data.</strong> Explore freely, then clear it when you're ready to add your own.</p>
     <button class="btn sm" id="clearSampleBtn">Clear sample data</button>
@@ -687,6 +690,7 @@
 
   <!-- DASHBOARD -->
   <section class="view" id="view-dashboard">
+    <div class="banner" id="backupNudge" hidden></div>
     <div class="card pending" data-pending-slot hidden></div>
     <div id="welcome" class="card welcome" hidden>
       <h2>Welcome to MoneyTracker</h2>
@@ -1012,6 +1016,21 @@
           </button>
           <div class="grow"><h2>Data</h2></div>
         </div>
+        <h2 class="section" style="margin-top:4px">Backup file</h2>
+        <div class="card set-list">
+          <button class="set-row tap" id="fileBackupRow">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+            <span class="grow"><span class="t">Save backup file</span><span class="d" id="fileBackupDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" id="fileRestoreRow">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></svg></span>
+            <span class="grow"><span class="t">Restore from backup file</span><span class="d">Replace everything on this phone with a backup file you saved earlier.</span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <input type="file" id="fileRestoreInput" hidden aria-label="Backup file">
+        </div>
+        <h2 class="section">More</h2>
         <div class="card set-list">
           <button class="set-row tap" id="exportRow">
             <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
@@ -1025,7 +1044,7 @@
           </button>
           <button class="set-row tap" id="backupRow" hidden>
             <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg></span>
-            <span class="grow"><span class="t">Restore backup</span><span class="d" id="backupDesc"></span></span>
+            <span class="grow"><span class="t">Restore automatic backup</span><span class="d" id="backupDesc"></span></span>
             <span class="chev" aria-hidden="true">›</span>
           </button>
           <button class="set-row tap" id="sampleRow">
@@ -1314,47 +1333,79 @@
 
   // ---------- State & persistence ----------
   let state = null;
-  let storageOk = true;
   let lastSavedRaw = null; // what this page last read or wrote, to notice changes made elsewhere (the quick-add launcher)
+  // Data problems, shown in a banner at the top of every page until they're resolved:
+  // saveFailed: the last save didn't reach storage (e.g. the phone is full), so recent changes exist only on screen.
+  // unreadable: saved data exists but couldn't be read. It's never overwritten: it's copied to RECOVERY_KEY first, and if
+  // that isn't possible, saving stays off (saveBlocked) until it's been saved as a file.
+  const RECOVERY_KEY = 'moneytracker.unreadable';
+  const dataProblem = { saveFailed: false, unreadable: false, saveBlocked: false };
+  let firstRun = false; // nothing was saved yet, so the app started with sample data
 
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      lastSavedRaw = raw;
-      if (raw) {
-        const s = JSON.parse(raw);
-        if (s && Array.isArray(s.accounts) && Array.isArray(s.transactions)) {
-          s.categories = Array.isArray(s.categories) && s.categories.length ? s.categories : DEFAULT_CATEGORIES.slice();
-          if (!s.categories.includes('Other')) s.categories.push('Other');
-          s.categoryColors = s.categoryColors && typeof s.categoryColors === 'object' ? s.categoryColors : {};
-          s.merchantCategories = s.merchantCategories && typeof s.merchantCategories === 'object' ? s.merchantCategories : {};
-          s.accounts.forEach((a) => { if (!Array.isArray(a.cards)) a.cards = []; if (!a.currency) a.currency = 'SAR'; });
-          // Your chosen account order (older data without it keeps the order accounts were added in).
-          s.accounts = s.accounts.map((a, i) => ({ a, i })).sort((x, y) => (x.a.order ?? x.i) - (y.a.order ?? y.i) || x.i - y.i).map((x) => x.a);
-          s.manualRates = s.manualRates && typeof s.manualRates === 'object' ? s.manualRates : {};
-          s.budgets = Array.isArray(s.budgets) ? s.budgets : [];
-          s.notifications = Array.isArray(s.notifications) ? s.notifications : [];
-          if (!s.budgetsSeeded) {
-            // Data saved before budgets existed: give the sample accounts their sample budgets.
-            const ids = new Set(s.accounts.map((a) => a.id));
-            if (ids.has('s-acc-1')) s.budgets.push(...makeSample().budgets.filter((b) => b.accounts === 'all' || b.accounts.every((id) => ids.has(id))));
-            s.budgetsSeeded = true;
-          }
-          return s;
-        }
-      }
-    } catch (e) { storageOk = false; }
-    // First visit: start with sample data.
-    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, merchantCategories: {}, manualRates: {}, budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
+  const emptyState = () => ({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, merchantCategories: {}, manualRates: {}, budgets: [], notifications: [], budgetsSeeded: true });
+
+  /** Checks saved data (from storage, a backup or a backup file) and fills in anything older versions didn't have. Returns null if it isn't app data. */
+  function normalize(s) {
+    if (!s || typeof s !== 'object' || !Array.isArray(s.accounts) || !Array.isArray(s.transactions)) return null;
+    s.categories = Array.isArray(s.categories) && s.categories.length ? s.categories : DEFAULT_CATEGORIES.slice();
+    if (!s.categories.includes('Other')) s.categories.push('Other');
+    s.categoryColors = s.categoryColors && typeof s.categoryColors === 'object' ? s.categoryColors : {};
+    s.merchantCategories = s.merchantCategories && typeof s.merchantCategories === 'object' ? s.merchantCategories : {};
+    s.accounts.forEach((a) => { if (!Array.isArray(a.cards)) a.cards = []; if (!a.currency) a.currency = 'SAR'; });
+    // Your chosen account order (older data without it keeps the order accounts were added in).
+    s.accounts = s.accounts.map((a, i) => ({ a, i })).sort((x, y) => (x.a.order ?? x.i) - (y.a.order ?? y.i) || x.i - y.i).map((x) => x.a);
+    s.manualRates = s.manualRates && typeof s.manualRates === 'object' ? s.manualRates : {};
+    s.budgets = Array.isArray(s.budgets) ? s.budgets : [];
+    s.notifications = Array.isArray(s.notifications) ? s.notifications : [];
+    if (!s.budgetsSeeded) {
+      // Data saved before budgets existed: give the sample accounts their sample budgets.
+      const ids = new Set(s.accounts.map((a) => a.id));
+      if (ids.has('s-acc-1')) s.budgets.push(...makeSample().budgets.filter((b) => b.accounts === 'all' || b.accounts.every((id) => ids.has(id))));
+      s.budgetsSeeded = true;
+    }
+    return s;
   }
 
+  function load() {
+    let raw;
+    try { raw = localStorage.getItem(STORE_KEY); }
+    catch (e) {
+      // Storage can't be read at all: whatever is saved there must not be overwritten.
+      Object.assign(dataProblem, { unreadable: true, saveBlocked: true });
+      return emptyState();
+    }
+    lastSavedRaw = raw;
+    if (raw == null) {
+      // First visit: start with sample data.
+      firstRun = true;
+      return Object.assign(emptyState(), makeSample());
+    }
+    let s = null;
+    try { s = normalize(JSON.parse(raw)); } catch (e) { s = null; }
+    if (s) return s;
+    // Saved data that can't be read: keep a copy before anything else is saved, and start empty.
+    let kept = false;
+    try { if (localStorage.getItem(RECOVERY_KEY) !== raw) localStorage.setItem(RECOVERY_KEY, raw); kept = true; } catch (e) {}
+    Object.assign(dataProblem, { unreadable: true, saveBlocked: !kept });
+    return emptyState();
+  }
+
+  /** Writes state to storage. Returns whether it worked; if not, a banner stays up until a save succeeds. */
   function save() {
     // state.accounts is kept in display order (new and imported accounts go to the end); store it on each account.
     state.accounts.forEach((a, i) => { a.order = i; });
-    try { const raw = JSON.stringify(state); localStorage.setItem(STORE_KEY, raw); lastSavedRaw = raw; }
-    catch (e) {
-      if (storageOk) toast('Could not save — your browser is blocking local storage.');
-      storageOk = false;
+    if (dataProblem.saveBlocked) { renderDataBanner(); toast('Not saved. See the message at the top of the page.'); return false; }
+    try {
+      const raw = JSON.stringify(state);
+      localStorage.setItem(STORE_KEY, raw);
+      lastSavedRaw = raw;
+      if (dataProblem.saveFailed) { dataProblem.saveFailed = false; renderDataBanner(); }
+      return true;
+    } catch (e) {
+      dataProblem.saveFailed = true;
+      renderDataBanner();
+      toast('Couldn’t save your changes. Your phone’s storage may be full.');
+      return false;
     }
   }
 
@@ -1658,6 +1709,9 @@
 
   // ---------- Rendering ----------
   function renderAll() {
+    renderDataBanner();
+    renderBackupNudge();
+    renderFileBackupRow();
     $('#sampleBanner').hidden = !hasSample();
     const empty = state.accounts.length === 0;
     $('#welcome').hidden = !empty;
@@ -1684,10 +1738,11 @@
   function commit(msg) {
     syncBudgets();
     const fresh = checkBudgetAlerts();
-    save();
+    const saved = save();
     renderAll();
-    if (msg) toast(msg);
+    if (msg && saved) toast(msg); // if it wasn't saved, save() has already said so
     deliverAlerts(fresh);
+    return saved;
   }
 
   function renderSummary() {
@@ -1953,7 +2008,7 @@
     const ok = await confirmAsk('Clear all data?', 'Every account, transaction, budget, category and alert on this phone will be deleted. A backup is saved first, so you can undo this with Restore backup.', 'Clear all data');
     if (!ok) return;
     if (!writeBackup('Before clearing all data', JSON.stringify(state))) { toast('Couldn’t save a backup (storage is full), so nothing was cleared.'); return; }
-    state = { accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, merchantCategories: {}, manualRates: {}, budgets: [], notifications: [], budgetsSeeded: true };
+    state = emptyState();
     ui.chartAccount = 'all';
     ui.filters = { q: '', account: 'all', category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' };
     syncFilterInputs();
@@ -3148,25 +3203,151 @@
       });
     }
     const csv = '﻿' + rows.map((r) => r.map(q).join(',')).join('\r\n');
-    const filename = `moneytracker-${todayISO()}.csv`;
+    const r = await saveFile(`moneytracker-${todayISO()}.csv`, csv, 'text/csv;charset=utf-8', 'Save or send your CSV');
+    if (r === 'error') toast('Could not export the CSV.');
+    else if (r === 'downloaded') toast('CSV downloaded');
+  }
+
+  /**
+   * Hands a text file to the user. Android WebView can't download blobs, so there the file is written to the app cache
+   * and the share sheet opens (Drive, Files, email…); in a browser it downloads. Returns 'shared', 'downloaded',
+   * 'cancelled' or 'error'.
+   */
+  async function saveFile(filename, text, type, dialogTitle) {
     if (NativeFS && NativeShare) {
-      // Android WebView can't download blobs: write the file to the app cache and open the share sheet.
       try {
-        const { uri } = await NativeFS.writeFile({ path: filename, data: csv, directory: 'CACHE', encoding: 'utf8' });
-        await NativeShare.share({ title: 'MoneyTracker export', dialogTitle: 'Save or send your CSV', files: [uri] });
+        const { uri } = await NativeFS.writeFile({ path: filename, data: text, directory: 'CACHE', encoding: 'utf8' });
+        await NativeShare.share({ title: filename, dialogTitle, files: [uri] });
+        return 'shared';
       } catch (e) {
-        if (!/cancel/i.test(String(e && e.message))) toast('Could not export the CSV.');
+        return /cancel/i.test(String(e && e.message)) ? 'cancelled' : 'error';
       }
+    }
+    try {
+      const url = URL.createObjectURL(new Blob([text], { type }));
+      const link = document.createElement('a');
+      link.href = url; link.download = filename;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return 'downloaded';
+    } catch (e) { return 'error'; }
+  }
+
+  // ---------- Backup file ----------
+  // A complete copy of the app's data as a JSON file the user keeps off the phone (Drive, Files…), and restoring from
+  // one. The automatic backup (Restore automatic backup) only lives on this phone, so it's lost with the phone.
+  // Not included: purchase-detection settings and pending purchases (kept by Android), theme and cached rates.
+  const FILE_BACKUP_KEY = 'moneytracker.fileBackup'; // { at: when a backup file was last saved, snoozeUntil }
+  const BACKUP_REMIND_DAYS = 30;
+  const readFileBackupInfo = () => { try { return JSON.parse(localStorage.getItem(FILE_BACKUP_KEY) || 'null') || {}; } catch (e) { return {}; } };
+  const writeFileBackupInfo = (info) => { try { localStorage.setItem(FILE_BACKUP_KEY, JSON.stringify(info)); } catch (e) {} };
+  const daysSince = (ts) => Math.floor((Date.now() - ts) / 864e5);
+  const agoText = (ts) => { const d = daysSince(ts); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
+  const hasOwnData = () => state.accounts.some((a) => !a.sample) || state.transactions.some((t) => !t.sample);
+
+  async function saveBackupFile() {
+    const text = JSON.stringify({ app: 'MoneyTracker', kind: 'backup', version: 1, savedAt: Date.now(), state }, null, 1);
+    const r = await saveFile(`moneytracker-backup-${todayISO()}.json`, text, 'application/json', 'Save your backup file');
+    if (r === 'error') { toast('Couldn’t create the backup file.'); return false; }
+    if (r === 'cancelled') return false;
+    writeFileBackupInfo({ at: Date.now() });
+    renderBackupNudge();
+    renderFileBackupRow();
+    toast(r === 'downloaded' ? 'Backup file downloaded' : 'Backup file saved. Keep it somewhere off this phone.');
+    return true;
+  }
+
+  function renderFileBackupRow() {
+    const info = readFileBackupInfo();
+    $('#fileBackupDesc').textContent = (info.at ? `Last saved ${agoText(info.at)}. ` : 'Never saved. ') +
+      'A complete copy of your data to keep in Google Drive or Files, in case this phone is lost or reset.';
+  }
+
+  // Dashboard reminder when there's real data and no recent backup file. "Later" hides it for a week.
+  function renderBackupNudge() {
+    const el = $('#backupNudge');
+    const info = readFileBackupInfo();
+    const due = !QUICK_ADD && !dataProblem.unreadable && hasOwnData() &&
+      (!info.at || daysSince(info.at) >= BACKUP_REMIND_DAYS) && !(info.snoozeUntil > Date.now());
+    el.hidden = !due;
+    if (!due) return;
+    el.innerHTML = `<p>${info.at ? `<strong>Your last backup file was saved ${agoText(info.at)}.</strong>` : '<strong>Your data is only on this phone.</strong>'} Save a backup file to Google Drive or Files so you don’t lose it if the phone is lost or reset.</p>
+      <div class="btns"><button class="btn sm primary" data-backup-now>Save backup file</button><button class="btn sm ghost" id="backupLater">Later</button></div>`;
+  }
+  $('#backupNudge').addEventListener('click', (e) => {
+    if (e.target.closest('[data-backup-now]')) saveBackupFile();
+    else if (e.target.id === 'backupLater') { writeFileBackupInfo({ ...readFileBackupInfo(), snoozeUntil: Date.now() + 7 * 864e5 }); renderBackupNudge(); }
+  });
+  $('#fileBackupRow').addEventListener('click', saveBackupFile);
+  $('#fileRestoreRow').addEventListener('click', () => { const i = $('#fileRestoreInput'); i.value = ''; i.click(); });
+  $('#fileRestoreInput').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) await restoreBackupFile(file);
+  });
+
+  async function restoreBackupFile(file) {
+    let parsed = null;
+    try { parsed = JSON.parse(await file.text()); } catch (e) { parsed = null; }
+    // A backup file, or the automatic backup's format ({ savedAt, state }).
+    const data = parsed && parsed.state ? normalize(parsed.state) : null;
+    if (!data) { toast('That isn’t a MoneyTracker backup file.'); return; }
+    const savedAt = Number(parsed.savedAt) || 0;
+    const ok = await confirmAsk('Restore this backup?',
+      `${savedAt ? `Saved ${whenSaved(savedAt)}: ` : ''}${plural(data.accounts.length, 'account')} and ${plural(data.transactions.length, 'transaction')}. ` +
+      'Everything on this phone will be replaced with it. Your current data is kept as the automatic backup, so you can undo this under Restore automatic backup.', 'Restore');
+    if (!ok) return;
+    if (!writeBackup('Before restoring a backup file', JSON.stringify(state))) { toast('Couldn’t back up your current data (storage is full), so nothing was restored.'); return; }
+    Object.assign(dataProblem, { unreadable: false, saveBlocked: false }); // the user chose this data over anything unreadable
+    replaceState(data, 'Backup restored');
+  }
+
+  /** Replaces all data (restoring a backup) and resets views that point at things that may no longer exist. */
+  function replaceState(next, msg) {
+    state = next;
+    ui.chartAccount = 'all';
+    ui.filters = { q: '', account: 'all', category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' };
+    ui.reorder = null;
+    syncFilterInputs();
+    if (ui.tab === 'account') setTab('dashboard');
+    commit(msg);
+    renderBackupRow();
+  }
+
+  // ---------- Data problems banner ----------
+  function renderDataBanner() {
+    const el = $('#dataBanner');
+    const p = dataProblem;
+    el.hidden = !(p.saveFailed || p.unreadable);
+    if (el.hidden) return;
+    if (p.unreadable) {
+      el.innerHTML = p.saveBlocked
+        ? `<p><strong>Your saved data couldn’t be read.</strong> Nothing will be saved until you save a copy of it as a file, so it can’t be overwritten. If you have a backup file, you can restore it instead (Settings → Data).</p>
+           <div class="btns"><button class="btn sm primary" data-unreadable-save>Save a copy as a file</button></div>`
+        : `<p><strong>Your saved data couldn’t be read, so the app started empty.</strong> A copy of it was kept on this phone and won’t be overwritten. If you have a backup file, restore it under Settings → Data.</p>
+           <div class="btns"><button class="btn sm" data-unreadable-save>Save the copy as a file</button><button class="btn sm ghost" data-unreadable-dismiss>Dismiss</button></div>`;
       return;
     }
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url; link.download = filename;
-    document.body.appendChild(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('CSV downloaded');
+    el.innerHTML = `<p><strong>Your latest changes aren’t saved.</strong> The app couldn’t write to this phone’s storage (it may be full). Free up some space and tap Try again, or save a backup file so nothing is lost.</p>
+      <div class="btns"><button class="btn sm primary" data-save-retry>Try again</button><button class="btn sm" data-backup-now>Save backup file</button></div>`;
   }
+  $('#dataBanner').addEventListener('click', async (e) => {
+    if (e.target.closest('[data-save-retry]')) { if (save()) toast('Saved'); }
+    else if (e.target.closest('[data-backup-now]')) saveBackupFile();
+    else if (e.target.closest('[data-unreadable-dismiss]')) { dataProblem.unreadable = false; renderAll(); }
+    else if (e.target.closest('[data-unreadable-save]')) {
+      let raw = null;
+      try { raw = localStorage.getItem(RECOVERY_KEY) || localStorage.getItem(STORE_KEY); } catch (err) {}
+      if (raw == null) { toast('Couldn’t read the saved data.'); return; }
+      const r = await saveFile(`moneytracker-unreadable-${todayISO()}.txt`, raw, 'text/plain', 'Save the unreadable data');
+      if (r === 'error') { toast('Couldn’t create the file.'); return; }
+      if (r === 'cancelled') return;
+      // It's safe in a file now, so saving can start again.
+      const wasBlocked = dataProblem.saveBlocked;
+      if (wasBlocked) { dataProblem.saveBlocked = false; save(); }
+      toast(wasBlocked ? 'Copy saved. Your changes are saved again from now on.' : 'Copy saved.');
+      renderDataBanner();
+    }
+  });
 
   // ---------- Theme ----------
   const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -3650,13 +3831,13 @@
     const b = readBackup();
     if (!b || !b.state) { toast('No backup found.'); return; }
     if ($('#importDialog').open) $('#importDialog').close();
+    const data = normalize(b.state);
+    if (!data) { toast('The backup couldn’t be read.'); return; }
     const ok = await confirmAsk('Restore backup?',
       `Your accounts, transactions, budgets and categories will be replaced with the copy saved ${whenSaved(b.savedAt)}. Anything added since then will be lost.`, 'Restore');
     if (!ok) return;
-    state = b.state;
-    ui.chartAccount = 'all';
-    ui.filters.account = 'all';
-    commit('Backup restored');
+    Object.assign(dataProblem, { unreadable: false, saveBlocked: false });
+    replaceState(data, 'Backup restored');
   }
 
   function openImport() {
@@ -4306,7 +4487,12 @@
     state = load();
     paintThemeBtn();
     const close = () => { if (QuickAddNative) QuickAddNative.close(); else location.href = location.pathname; };
-    if (!state.accounts.length) { toast('Add an account in the app first.'); setTimeout(close, 2200); return; }
+    // Nothing saved yet (load() would show sample accounts) or saved data that can't be read: send them to the app.
+    if (firstRun || dataProblem.unreadable || !state.accounts.length) {
+      toast(dataProblem.unreadable ? 'Open Expense Tracker: your saved data needs attention.' : 'Add an account in the app first.');
+      setTimeout(close, 2200);
+      return;
+    }
     refreshNotifPerm(); // so a budget alert from this transaction can reach the phone
 
     const mostUsed = (keys) => {
@@ -4322,14 +4508,18 @@
     if (category) { $('#txForm').category.value = category; }
     const dlg = $('#txDialog');
     dlg.addEventListener('close', () => {
-      if (state.transactions.length > count) setTimeout(close, 1300); // saved: let the "Transaction added" toast show first
-      else close();
+      if (state.transactions.length <= count) close();
+      else if (dataProblem.saveFailed) setTimeout(close, 4000); // save() has shown "Couldn't save…"; give time to read it
+      else setTimeout(close, 1300); // saved: let the "Transaction added" toast show first
     });
     // Cursor in the amount field with the number keyboard open.
     setTimeout(() => { $('#txForm').amount.focus(); if (QuickAddNative) QuickAddNative.showKeyboard().catch(() => {}); }, 120);
     if (NativeApp) NativeApp.addListener('backButton', () => { const open = $$('dialog').filter((d) => d.open).pop(); if (open) open.close(); else close(); });
   }
   if (QUICK_ADD) { startQuickAdd(); return; }
+  // The QuickAdd plugin only exists in the quick-add screen, which can show over the lock screen. Without ?quickAdd it
+  // would be the full app, so close instead (the native side checks this too).
+  if (QuickAddNative) { QuickAddNative.close(); return; }
 
   // ---------- Init ----------
   state = load();
