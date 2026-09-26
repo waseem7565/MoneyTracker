@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>MoneyTracker</title>
 <meta name="description" content="Personal expense tracker: accounts, transactions and spending insights in SAR.">
 <script>
@@ -342,24 +342,64 @@
   }
   .fab svg { width: 22px; height: 22px; }
 
-  /* Dialogs */
+  /* Pop-ups (every <dialog>): a centered card on larger screens, a bottom sheet on phones.
+     Open/close animations and swipe-to-close live in the "Dialogs" script section. */
+  :root { --dlg-ease: cubic-bezier(.22, .9, .3, 1); --kb-inset: 0px; }
   dialog {
-    border: 1px solid var(--border); border-radius: 18px; padding: 0; background: var(--surface); color: var(--text);
-    width: min(460px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);
+    border: 1px solid var(--border); border-radius: 22px; padding: 0; background: var(--surface); color: var(--text);
+    width: min(480px, calc(100vw - 32px)); max-width: none; max-height: min(760px, calc(100dvh - 48px));
+    box-shadow: 0 24px 64px -16px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.08);
+    overflow: hidden; overscroll-behavior: contain;
   }
-  dialog::backdrop { background: rgba(0,0,0,.45); }
-  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 4px; }
-  .dlg-head h3 { margin: 0; font-size: 17px; }
-  .dlg-body { padding: 10px 18px; display: grid; gap: 12px; }
-  .dlg-foot { display: flex; gap: 8px; padding: 12px 18px 18px; justify-content: flex-end; flex-wrap: wrap; }
+  dialog[open] { display: flex; flex-direction: column; animation: dlg-in 250ms var(--dlg-ease); }
+  dialog > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  dialog::backdrop { background: rgba(8, 8, 10, .5); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  dialog[open]::backdrop { animation: dlg-fade-in 250ms ease-out; }
+  dialog.closing { animation: dlg-out 200ms ease-in forwards; pointer-events: none; }
+  dialog.closing::backdrop { animation: dlg-fade-out 200ms ease-in forwards; }
+  #confirmDialog { width: min(400px, calc(100vw - 32px)); }
+  @keyframes dlg-in { from { opacity: 0; transform: translateY(10px) scale(.96); } }
+  @keyframes dlg-out { to { opacity: 0; transform: translateY(10px) scale(.96); } }
+  @keyframes dlg-fade-in { from { opacity: 0; } }
+  @keyframes dlg-fade-out { to { opacity: 0; } }
+  .sheet-handle { display: none; }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 16px 10px 22px; flex: none; }
+  .dlg-head h3 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  .dlg-head [data-close] { width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--surface-2); color: var(--text-2); font-size: 14px; }
+  .dlg-head [data-close]:hover { background: var(--border); color: var(--text); }
+  .dlg-body { padding: 8px 22px 18px; display: grid; gap: 16px; align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .dlg-foot { display: flex; gap: 10px; padding: 14px 22px 20px; justify-content: flex-end; flex-wrap: wrap; flex: none; border-top: 1px solid var(--border); background: var(--surface); }
   .dlg-foot .left { margin-right: auto; }
-  .field { display: grid; gap: 5px; }
-  .field > span { font-size: 13px; color: var(--text-2); font-weight: 500; }
+  .dlg-foot .btn { height: 48px; padding: 0 22px; border-radius: 14px; font-size: 15px; font-weight: 600; }
+  .dlg-foot .btn:not(.primary) { background: var(--surface-2); border-color: transparent; }
+  .dlg-foot .btn:not(.primary):hover { background: var(--border); }
+  .dlg-foot .btn.danger { background: color-mix(in srgb, var(--neg) 12%, transparent); color: var(--neg); }
+  .dlg-foot .btn.danger:hover { background: color-mix(in srgb, var(--neg) 20%, transparent); }
+  .dlg-foot .btn.primary { box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent) 60%, transparent); }
+
+  /* Form fields inside pop-ups */
+  .field { display: grid; gap: 7px; }
+  .field > span { font-size: 13px; color: var(--text-2); font-weight: 600; }
   .field input, .field select { width: 100%; }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .amount-input { font-size: 22px !important; height: 48px !important; font-weight: 600; }
-  .type-toggle { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 10px; padding: 3px; }
-  .type-toggle label { text-align: center; padding: 8px; border-radius: 8px; cursor: pointer; color: var(--text-2); font-weight: 500; }
+  dialog :is(input[type=text], input[type=number], input[type=date], select) {
+    height: 48px; padding: 0 14px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface-2);
+    font-size: 16px; transition: border-color .15s, box-shadow .15s, background-color .15s;
+  }
+  dialog :is(input[type=text], input[type=number], input[type=date], select):focus {
+    outline: none; border-color: var(--accent); background: var(--surface);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  dialog [aria-invalid="true"] { border-color: var(--neg) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--neg) 16%, transparent) !important; }
+  .field-err { display: flex; gap: 7px; align-items: flex-start; color: var(--neg); font-size: 13px; font-weight: 500; animation: dlg-err-in .2s ease-out; }
+  .field-err::before {
+    content: '!'; flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 50%;
+    background: var(--neg); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center;
+  }
+  @keyframes dlg-err-in { from { opacity: 0; transform: translateY(-3px); } }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .amount-input { font-size: 24px !important; height: 56px !important; font-weight: 600; }
+  .type-toggle { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 12px; padding: 4px; }
+  .type-toggle label { text-align: center; padding: 10px 8px; border-radius: 9px; cursor: pointer; color: var(--text-2); font-weight: 500; transition: background-color .15s; }
   .type-toggle input { position: absolute; opacity: 0; pointer-events: none; }
   .type-toggle input:checked + span { color: var(--text); font-weight: 600; }
   .type-toggle label:has(input:checked) { background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
@@ -367,10 +407,36 @@
   .cat-row { display: flex; gap: 6px; }
   .cat-row select { flex: 1; }
   .swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .swatches button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
+  .swatches button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--border); cursor: pointer; transition: box-shadow .15s; }
   .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--text); }
-  .swatches input[type=color] { width: 36px; height: 32px; border: 1px solid var(--border); border-radius: 8px; padding: 2px; background: var(--surface); cursor: pointer; }
-  .err { color: var(--neg); font-size: 13px; min-height: 1em; margin: 0; }
+  .swatches input[type=color] { width: 40px; height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 2px; background: var(--surface); cursor: pointer; }
+  dialog .acc-checks { border-radius: 12px; border-width: 1.5px; }
+  dialog .cat-row .btn { height: 48px; border-radius: 12px; padding: 0 14px; }
+
+  /* Phones: bottom sheet that slides up, sits above the keyboard and keeps its buttons in reach. */
+  @media (max-width: 600px) {
+    html:has(dialog[open]) { overflow: hidden; }
+    dialog, #confirmDialog {
+      width: 100%; margin: auto 0 var(--kb-inset); border-radius: 24px 24px 0 0; border-bottom: 0;
+      max-height: calc(100dvh - var(--kb-inset) - max(20px, env(safe-area-inset-top)));
+      box-shadow: 0 -12px 40px -8px rgba(0,0,0,.3);
+    }
+    dialog[open] { animation-name: sheet-in; }
+    dialog.closing { animation-name: sheet-out; }
+    .sheet-handle { display: block; flex: none; width: 100%; height: 22px; touch-action: none; cursor: grab; position: relative; }
+    .sheet-handle::after { content: ''; position: absolute; left: 50%; top: 9px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--border); }
+    .dlg-head { padding-top: 2px; touch-action: none; }
+    .dlg-body { padding-left: 18px; padding-right: 18px; }
+    .dlg-foot { flex-wrap: nowrap; padding: 12px 18px max(14px, env(safe-area-inset-bottom)); }
+    .dlg-foot .btn { flex: 1 1 0; min-width: 0; padding: 0 10px; white-space: normal; line-height: 1.15; }
+    .dlg-foot .btn.left { flex: 0 1 auto; margin-right: 0; }
+  }
+  @keyframes sheet-in { from { transform: translateY(100%); } }
+  @keyframes sheet-out { to { transform: translateY(100%); } }
+  @media (prefers-reduced-motion: reduce) {
+    dialog[open], dialog.closing, dialog[open]::backdrop, dialog.closing::backdrop, .field-err { animation-duration: 1ms !important; }
+    dialog :is(input, select), .type-toggle label, .swatches button { transition: none !important; }
+  }
 
   .toast {
     position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px); opacity: 0;
@@ -607,7 +673,6 @@
         </div>
       </div>
       <label class="field"><span>Description</span><input type="text" name="description" maxlength="80" placeholder="e.g. Groceries at Panda"></label>
-      <p class="err" id="txErr"></p>
     </div>
     <div class="dlg-foot">
       <button type="button" class="btn danger left" id="txDelete" hidden>Delete</button>
@@ -635,7 +700,6 @@
         <label class="field"><span>Starting balance (SAR)</span><input class="num" type="number" name="startBalance" step="0.01" inputmode="decimal" placeholder="0.00"></label>
       </div>
       <div class="field"><span>Color</span><div class="swatches" id="accSwatches"></div></div>
-      <p class="err" id="accErr"></p>
     </div>
     <div class="dlg-foot">
       <button type="button" class="btn danger left" id="accDelete" hidden>Delete</button>
@@ -654,7 +718,6 @@
       <p class="tile-sub" id="catOtherNote" hidden style="margin:0">“Other” is the fallback category, so it can’t be renamed or deleted. You can still change its color.</p>
       <div class="field"><span>Color</span><div class="swatches" id="catSwatches"></div></div>
       <p class="tile-sub" id="catUsage" style="margin:0"></p>
-      <p class="err" id="catErr"></p>
     </div>
     <div class="dlg-body" id="catDeleteBody" hidden>
       <p id="catDeleteMsg" style="margin:0;color:var(--text-2)"></p>
@@ -690,7 +753,6 @@
         </div>
         <div class="acc-checks" id="budgetAccChecks"></div>
       </div>
-      <p class="err" id="budgetErr"></p>
     </div>
     <div class="dlg-foot">
       <button type="button" class="btn danger left" id="budgetDelete" hidden>Delete</button>
@@ -713,7 +775,7 @@
 
 <!-- Confirm dialog -->
 <dialog id="confirmDialog">
-  <div class="dlg-head"><h3 id="confirmTitle">Are you sure?</h3></div>
+  <div class="dlg-head"><h3 id="confirmTitle">Are you sure?</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
   <div class="dlg-body"><p id="confirmMsg" style="margin:0;color:var(--text-2)"></p></div>
   <div class="dlg-foot">
     <button type="button" class="btn" id="confirmNo">Cancel</button>
@@ -1234,7 +1296,7 @@
     if (!b) { toast('That budget no longer exists.'); return; }
     detailBudget = b;
     renderBudgetDetail();
-    if (!$('#budgetDetailDialog').open) $('#budgetDetailDialog').showModal();
+    $('#budgetDetailDialog').showModal();
   }
 
   function renderBudgetDetail() {
@@ -1624,7 +1686,7 @@
     const f = $('#txForm');
     $('#txDlgTitle').textContent = tx ? 'Edit transaction' : 'Add transaction';
     $('#txDelete').hidden = !tx;
-    $('#txErr').textContent = '';
+    clearFieldErrors(f);
     $('#txNewCatRow').hidden = true;
     f.accountId.innerHTML = state.accounts.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
     f.category.innerHTML = state.categories.map((c) => `<option>${esc(c)}</option>`).join('');
@@ -1644,8 +1706,8 @@
     e.preventDefault();
     const f = e.target;
     const amount = round2(parseFloat(f.amount.value));
-    if (!(amount > 0)) { $('#txErr').textContent = 'Enter an amount greater than zero.'; f.amount.focus(); return; }
-    if (!f.date.value) { $('#txErr').textContent = 'Pick a date.'; return; }
+    if (!(amount > 0)) { showFieldError(f.amount, 'Enter an amount greater than zero.'); return; }
+    if (!f.date.value) { showFieldError(f.date, 'Pick a date.'); return; }
     const data = {
       type: f.querySelector('input[name=type]:checked').value,
       amount, date: f.date.value, accountId: f.accountId.value,
@@ -1692,7 +1754,7 @@
     const f = $('#accForm');
     $('#accDlgTitle').textContent = acc ? 'Edit account' : 'Add account';
     $('#accDelete').hidden = !acc;
-    $('#accErr').textContent = '';
+    clearFieldErrors(f);
     f.name.value = acc ? acc.name : '';
     f.type.value = acc ? acc.type : 'checking';
     f.startBalance.value = acc ? acc.startBalance : '';
@@ -1713,9 +1775,9 @@
     e.preventDefault();
     const f = e.target;
     const name = f.name.value.trim();
-    if (!name) { $('#accErr').textContent = 'Give the account a name.'; f.name.focus(); return; }
+    if (!name) { showFieldError(f.name, 'Give the account a name.'); return; }
     const sb = f.startBalance.value === '' ? 0 : round2(parseFloat(f.startBalance.value));
-    if (Number.isNaN(sb)) { $('#accErr').textContent = 'Starting balance must be a number.'; return; }
+    if (Number.isNaN(sb)) { showFieldError(f.startBalance, 'Starting balance must be a number.'); return; }
     const data = { name, type: f.type.value, startBalance: sb, color: accColor };
     if (editingAcc) Object.assign(editingAcc, data);
     else state.accounts.push({ id: uid(), ...data });
@@ -1804,9 +1866,112 @@
   $$('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('#fab').addEventListener('click', () => openTxDialog(null));
   $('#exportBtn').addEventListener('click', exportCSV);
-  $$('dialog').forEach((d) => d.addEventListener('click', (e) => {
-    if (e.target.closest('[data-close]') || e.target === d) d.close();
-  }));
+  // ---------- Dialogs (shared behavior for every pop-up) ----------
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const isSheet = () => window.matchMedia('(max-width: 600px)').matches;
+  const DIALOG_CLOSE_MS = 200;
+
+  function setupDialog(d) {
+    d.insertAdjacentHTML('afterbegin', '<div class="sheet-handle" aria-hidden="true"></div>');
+    const nativeClose = d.close.bind(d), nativeShowModal = d.showModal.bind(d);
+    let closeTimer = null;
+    const resetPosition = () => { d.style.transform = ''; d.style.transition = ''; };
+    const finishClose = (rv) => { closeTimer = null; d.classList.remove('closing'); resetPosition(); nativeClose(rv); };
+
+    // close() plays the exit animation first; the dialog's "close" event still fires when it's really closed.
+    d.close = (rv) => {
+      if (!d.open || closeTimer) return;
+      if (reduceMotion.matches) { finishClose(rv); return; }
+      d.classList.add('closing');
+      closeTimer = setTimeout(() => finishClose(rv), DIALOG_CLOSE_MS);
+    };
+    // Reopening while the exit animation runs just keeps it open.
+    d.showModal = () => {
+      if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; d.classList.remove('closing'); resetPosition(); return; }
+      if (!d.open) nativeShowModal();
+    };
+    d.addEventListener('cancel', (e) => { e.preventDefault(); d.close(); }); // Esc animates too
+
+    // Tap outside (on the dimmed backdrop) closes; a press that starts inside and ends outside doesn't.
+    const outside = (e) => { const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
+    let pressedOutside = false;
+    d.addEventListener('pointerdown', (e) => { pressedOutside = e.target === d && outside(e); });
+    d.addEventListener('click', (e) => {
+      if (e.target.closest('[data-close]') || (e.target === d && pressedOutside && outside(e))) d.close();
+    });
+
+    // Swipe down on the handle or title to close the bottom sheet.
+    let drag = null;
+    d.addEventListener('pointerdown', (e) => {
+      if (!isSheet() || closeTimer || !e.target.closest('.sheet-handle, .dlg-head') || e.target.closest('button')) return;
+      drag = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+      d.setPointerCapture(e.pointerId);
+      d.style.transition = 'none';
+    });
+    d.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag.dy = Math.max(0, e.clientY - drag.y);
+      d.style.transform = `translateY(${drag.dy}px)`;
+    });
+    const endDrag = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const { dy, t } = drag;
+      drag = null;
+      const speed = dy / Math.max(1, performance.now() - t); // px per ms
+      if (dy > 100 || (dy > 30 && speed > 0.5)) { d.style.transition = ''; d.close(); return; } // slides on from where it was let go
+      d.style.transition = `transform ${reduceMotion.matches ? 0 : 200}ms var(--dlg-ease)`;
+      d.style.transform = '';
+      setTimeout(() => { if (!drag) d.style.transition = ''; }, 220);
+    };
+    d.addEventListener('pointerup', endDrag);
+    d.addEventListener('pointercancel', endDrag);
+  }
+  $$('dialog').forEach(setupDialog);
+
+  // Keep bottom sheets above the on-screen keyboard, and the focused field in view.
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const updateKeyboardInset = () => document.documentElement.style.setProperty('--kb-inset', `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
+    vv.addEventListener('resize', updateKeyboardInset);
+    vv.addEventListener('scroll', updateKeyboardInset);
+    updateKeyboardInset();
+  }
+  document.addEventListener('focusin', (e) => {
+    if (!e.target.closest || !e.target.closest('dialog') || !e.target.matches('input, select')) return;
+    setTimeout(() => e.target.scrollIntoView({ block: 'nearest', behavior: reduceMotion.matches ? 'auto' : 'smooth' }), 300);
+  });
+
+  // Inline form errors: shown under the field they're about, cleared as soon as it's edited.
+  function clearFieldErrors(root) {
+    $$('.field-err', root).forEach((el) => el.remove());
+    $$('[aria-invalid]', root).forEach((el) => { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); });
+  }
+  let fieldErrSeq = 0;
+  function showFieldError(el, msg) {
+    clearFieldErrors(el.closest('form') || el.closest('dialog'));
+    const field = el.closest('.field') || el.parentElement;
+    const err = document.createElement('span');
+    err.className = 'field-err';
+    err.id = `field-err-${++fieldErrSeq}`;
+    err.setAttribute('role', 'alert');
+    err.textContent = msg;
+    field.appendChild(err);
+    if (el.matches('input, select')) {
+      el.setAttribute('aria-invalid', 'true');
+      el.setAttribute('aria-describedby', err.id);
+      el.focus();
+    }
+    err.scrollIntoView({ block: 'nearest' });
+  }
+  const clearOwnError = (e) => {
+    const field = e.target.closest && e.target.closest('dialog .field');
+    if (!field) return;
+    const err = field.querySelector('.field-err');
+    if (err) err.remove();
+    $$('[aria-invalid]', field).forEach((el) => { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); });
+  };
+  document.addEventListener('input', clearOwnError);
+  document.addEventListener('change', clearOwnError);
 
   document.addEventListener('click', (e) => {
     const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget]');
@@ -1859,7 +2024,7 @@
     f.name.disabled = isOther;
     $('#catOtherNote').hidden = !isOther;
     $('#catDelete').hidden = isOther;
-    $('#catErr').textContent = '';
+    clearFieldErrors(f);
     const u = categoryUsage(name);
     $('#catUsage').textContent = `Used by ${u.tx} transaction${u.tx === 1 ? '' : 's'}${u.budgets ? ` and ${u.budgets} budget${u.budgets === 1 ? '' : 's'}` : ''}. Renaming updates them all.`;
     renderCatSwatches();
@@ -1879,7 +2044,7 @@
     const from = editingCat;
     const name = from === 'Other' ? 'Other' : cleanCatName(e.target.name.value);
     const err = categoryNameError(name, from);
-    if (err) { $('#catErr').textContent = err; e.target.name.focus(); return; }
+    if (err) { showFieldError(e.target.name, err); return; }
     if (name !== from) renameCategory(from, name);
     if (catColorChoice) state.categoryColors[name] = catColorChoice;
     else delete state.categoryColors[name];
@@ -1946,7 +2111,7 @@
     const f = $('#budgetForm');
     $('#budgetDlgTitle').textContent = b ? 'Edit budget' : 'Add budget';
     $('#budgetDelete').hidden = !b;
-    $('#budgetErr').textContent = '';
+    clearFieldErrors(f);
     f.name.value = b ? b.name : '';
     f.limit.value = b ? b.limit : '';
     const cats = state.categories.slice();
@@ -1971,10 +2136,9 @@
     const limit = round2(parseFloat(f.limit.value));
     const some = f.querySelector('input[name=scope]:checked').value === 'some';
     const accounts = some ? $$('input[name=acc]:checked', f).map((i) => i.value) : 'all';
-    const err = !name ? 'Give the budget a name.'
-      : !(limit > 0) ? 'Enter a monthly limit greater than zero.'
-      : some && !accounts.length ? 'Pick at least one account, or choose “All accounts”.' : '';
-    if (err) { $('#budgetErr').textContent = err; return; }
+    if (!name) { showFieldError(f.name, 'Give the budget a name.'); return; }
+    if (!(limit > 0)) { showFieldError(f.limit, 'Enter a monthly limit greater than zero.'); return; }
+    if (some && !accounts.length) { showFieldError($('#budgetAccChecks'), 'Pick at least one account, or choose “All accounts”.'); return; }
     const data = { name, limit, category: f.category.value, accounts };
     const isNew = !editingBudget;
     if (editingBudget) Object.assign(editingBudget, data);
@@ -2087,7 +2251,7 @@
   if (NativeApp) {
     // Android back button: close whatever is on top before leaving the app.
     NativeApp.addListener('backButton', () => {
-      const openDialog = $$('dialog').find((d) => d.open);
+      const openDialog = $$('dialog').filter((d) => d.open && !d.classList.contains('closing')).pop();
       if (openDialog) openDialog.close();
       else if (!$('#notifPanel').hidden) toggleNotifPanel(false);
       else if (ui.tab !== 'dashboard') setTab('dashboard');
