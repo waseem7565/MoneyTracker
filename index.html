@@ -29,6 +29,11 @@
     --warn-border: #f0d48a;
     --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
     --radius: 14px;
+    --limit: #d6d5cf;
+    /* Status colors are fixed across themes and always paired with a text label. */
+    --good: #0ca30c;
+    --warn: #fab219;
+    --bad: #d03b3b;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -48,6 +53,7 @@
       --warn-bg: #2c2512;
       --warn-border: #5c4a1a;
       --shadow: none;
+      --limit: #55544f;
     }
   }
   :root[data-theme="dark"] {
@@ -67,6 +73,7 @@
     --warn-bg: #2c2512;
     --warn-border: #5c4a1a;
     --shadow: none;
+    --limit: #55544f;
   }
 
   * { box-sizing: border-box; }
@@ -99,6 +106,7 @@
     border-bottom: 2px solid transparent; font-weight: 500; white-space: nowrap;
   }
   .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  @media (max-width: 420px) { .tabs { gap: 0; } .tab { padding: 10px 8px; font-size: 14px; } }
 
   /* Buttons */
   .btn {
@@ -237,6 +245,88 @@
   .cat-add { display: flex; gap: 6px; flex: 1 1 220px; }
   .cat-add input { flex: 1; }
 
+  /* Budgets */
+  .progress { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .progress > span { display: block; height: 100%; border-radius: 999px; background: var(--good); transition: width .3s; }
+  .progress.near > span { background: var(--warn); }
+  .progress.over > span { background: var(--bad); }
+  .status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+  .status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
+  .status.near::before { background: var(--warn); }
+  .status.over::before { background: var(--bad); }
+  .budget-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; }
+  .budget-head h2 { margin: 0; font-size: 18px; }
+  .budget-head p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .budget-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .budget-card { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .budget-card .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .budget-card .name { font-weight: 600; overflow-wrap: anywhere; }
+  .budget-card .scope { font-size: 12.5px; color: var(--muted); }
+  .budget-card .actions { display: flex; gap: 6px; margin-top: auto; flex-wrap: wrap; }
+  .budget-nums { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); flex-wrap: wrap; }
+  .budget-nums strong { color: var(--text); font-size: 15px; }
+  .hist-dots { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); }
+  .hist-dots i { width: 10px; height: 10px; border-radius: 3px; background: var(--good); display: inline-block; }
+  .hist-dots i.over { background: var(--bad); }
+  .warn-note { font-size: 12.5px; color: var(--neg); }
+  .budget-dash { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
+  @media (max-width: 820px) { .budget-dash { grid-template-columns: 1fr; } }
+  .bsum { padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+  .bsum .big { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .bsum ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; font-size: 13px; }
+  .bsum li .row { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .bsum .progress { height: 6px; }
+  .budget-empty { padding: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .budget-empty p { margin: 0; color: var(--text-2); }
+  .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); margin-top: 10px; }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chart-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .radio-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .acc-checks { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; max-height: 180px; overflow: auto; }
+  .acc-checks label, .radio-row label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .acc-checks .swatch-dot { width: 6px; height: 14px; border-radius: 3px; }
+  input[type=checkbox], input[type=radio], .field input[type=checkbox], .field input[type=radio] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+  .hist-wrap { max-height: 260px; overflow: auto; }
+  .hist-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .hist-table th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 4px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+  .hist-table td { padding: 8px 4px; border-bottom: 1px solid var(--border); }
+  .hist-table .r { text-align: right; }
+  .hist-table .status { white-space: normal; }
+
+  /* Notifications */
+  .bell-wrap { position: relative; }
+  .icon-btn { position: relative; }
+  .badge {
+    position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    background: var(--bad); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; line-height: 1;
+  }
+  .notif-panel { position: absolute; right: 0; top: 46px; width: 360px; max-height: min(480px, calc(100dvh - 80px)); display: flex; flex-direction: column; z-index: 40; overflow: hidden; }
+  @media (max-width: 480px) { .notif-panel { position: fixed; left: 12px; right: 12px; top: 60px; width: auto; } }
+  .np-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--border); }
+  .np-head div { display: flex; gap: 2px; }
+  .np-perm { padding: 8px 16px; font-size: 12.5px; color: var(--text-2); border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .np-list { list-style: none; margin: 0; padding: 0; overflow: auto; }
+  .np-item { display: flex; gap: 10px; padding: 12px 10px 12px 16px; border-bottom: 1px solid var(--border); }
+  .np-item.unread { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .np-item .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--warn); }
+  .np-item .dot.over { background: var(--bad); }
+  .np-item .body { flex: 1; min-width: 0; cursor: pointer; }
+  .np-item .t, .alert .t { font-weight: 600; font-size: 14px; }
+  .np-item .b, .alert .b { font-size: 13px; color: var(--text-2); }
+  .np-item .when { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .np-item .acts { display: flex; flex-direction: column; gap: 2px; }
+  .np-empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .alerts { position: fixed; top: 64px; right: 16px; z-index: 60; display: grid; gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+  .alert {
+    pointer-events: auto; display: flex; gap: 8px; align-items: flex-start; padding: 12px 8px 12px 14px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warn);
+    box-shadow: 0 8px 28px rgba(0,0,0,.18); animation: alert-in .2s ease-out;
+  }
+  .alert.over { border-left-color: var(--bad); }
+  .alert .grow { cursor: pointer; }
+  @keyframes alert-in { from { transform: translateY(-8px); opacity: 0; } }
+
   /* FAB */
   .fab {
     position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom));
@@ -300,11 +390,26 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
         <span class="hide-sm">Export CSV</span>
       </button>
+      <div class="bell-wrap">
+        <button class="btn icon-btn" id="bellBtn" aria-haspopup="true" aria-expanded="false" aria-label="Notifications" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="badge num" id="bellBadge" hidden></span>
+        </button>
+        <div class="card notif-panel" id="notifPanel" hidden>
+          <div class="np-head">
+            <strong>Notifications</strong>
+            <div><button class="btn sm ghost" id="npMarkAll">Mark all read</button><button class="btn sm ghost" id="npClear">Clear all</button></div>
+          </div>
+          <div class="np-perm" id="npPerm"></div>
+          <ul class="np-list" id="npList"></ul>
+        </div>
+      </div>
       <button class="btn icon-btn" id="themeBtn" title="Toggle light / dark mode" aria-label="Toggle light or dark mode"></button>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" data-tab="dashboard" aria-selected="true">Dashboard</button>
       <button class="tab" role="tab" data-tab="transactions" aria-selected="false">Transactions</button>
+      <button class="tab" role="tab" data-tab="budgets" aria-selected="false">Budgets</button>
       <button class="tab" role="tab" data-tab="accounts" aria-selected="false">Accounts</button>
     </nav>
   </div>
@@ -343,6 +448,31 @@
           <div class="tile-label">Biggest category this month</div>
           <div class="tile-value" id="sumTopCat">—</div>
           <div class="tile-sub num" id="sumTopCatSub"></div>
+        </div>
+      </div>
+
+      <h2 class="section">Budgets this month <button class="btn sm ghost" data-goto="budgets">Manage budgets →</button></h2>
+      <div class="card budget-empty" id="budgetDashEmpty" hidden>
+        <p>Set monthly spending limits and get alerted before you overspend.</p>
+        <button class="btn primary sm" data-action="add-budget">Create a budget</button>
+      </div>
+      <div class="budget-dash" id="budgetDash">
+        <div class="card bsum">
+          <div class="tile-label">Budget summary</div>
+          <div><span class="big num" id="bsumValue"></span> <span id="bsumLabel"></span></div>
+          <div class="tile-sub" id="bsumSub"></div>
+          <ul id="bsumList"></ul>
+        </div>
+        <div class="card chart-card">
+          <h3>Budget vs. actual</h3>
+          <div class="sub" id="budgetChartSub"></div>
+          <div class="chart-box" id="budgetChartBox"><canvas id="budgetChart" role="img" aria-label="Bar chart comparing each budget's limit with actual spending this month"></canvas></div>
+          <div class="chart-legend">
+            <span><i style="background:var(--limit)"></i>Limit</span>
+            <span><i style="background:var(--good)"></i>Spent · on track</span>
+            <span><i style="background:var(--warn)"></i>Near limit</span>
+            <span><i style="background:var(--bad)"></i>Over budget</span>
+          </div>
         </div>
       </div>
 
@@ -415,6 +545,15 @@
       <span class="num" id="txTotals"></span>
     </div>
     <ul class="card tx-list" id="txList"></ul>
+  </section>
+
+  <!-- BUDGETS -->
+  <section class="view" id="view-budgets" hidden>
+    <div class="budget-head">
+      <div><h2 id="budgetMonth"></h2><p id="budgetReset"></p></div>
+      <button class="btn primary" data-action="add-budget">+ Add budget</button>
+    </div>
+    <div class="budget-grid" id="budgetGrid"></div>
   </section>
 
   <!-- ACCOUNTS -->
@@ -498,6 +637,45 @@
   </form>
 </dialog>
 
+<!-- Budget dialog -->
+<dialog id="budgetDialog">
+  <form id="budgetForm" novalidate>
+    <div class="dlg-head"><h3 id="budgetDlgTitle">Add budget</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
+    <div class="dlg-body">
+      <label class="field"><span>Budget name</span><input type="text" name="name" maxlength="40" placeholder="e.g. Groceries &amp; dining" required></label>
+      <div class="two">
+        <label class="field"><span>Monthly limit (SAR)</span><input class="num" type="number" name="limit" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00" required></label>
+        <label class="field"><span>Category</span><select name="category"></select></label>
+      </div>
+      <div class="field">
+        <span>Applies to</span>
+        <div class="radio-row">
+          <label><input type="radio" name="scope" value="all" checked> All accounts</label>
+          <label><input type="radio" name="scope" value="some"> Specific accounts</label>
+        </div>
+        <div class="acc-checks" id="budgetAccChecks"></div>
+      </div>
+      <p class="err" id="budgetErr"></p>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn danger left" id="budgetDelete" hidden>Delete</button>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Budget detail dialog -->
+<dialog id="budgetDetailDialog">
+  <div class="dlg-head"><h3 id="bdTitle"></h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
+  <div class="dlg-body" id="bdBody"></div>
+  <div class="dlg-foot">
+    <button type="button" class="btn left" id="bdTx">View transactions</button>
+    <button type="button" class="btn" id="bdEdit">Edit</button>
+    <button type="button" class="btn primary" data-close>Close</button>
+  </div>
+</dialog>
+
 <!-- Confirm dialog -->
 <dialog id="confirmDialog">
   <div class="dlg-head"><h3 id="confirmTitle">Are you sure?</h3></div>
@@ -509,6 +687,7 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="alerts" id="alerts" aria-live="assertive"></div>
 
 <script>
 (function () {
@@ -535,6 +714,7 @@
   const shortDateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
   const monthFmt = new Intl.DateTimeFormat('en-GB', { month: 'short' });
   const monthYearFmt = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
+  const shortMonthYearFmt = new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric' });
 
   // ---------- Helpers ----------
   const $ = (s, el = document) => el.querySelector(s);
@@ -574,12 +754,20 @@
         if (s && Array.isArray(s.accounts) && Array.isArray(s.transactions)) {
           s.categories = Array.isArray(s.categories) && s.categories.length ? s.categories : DEFAULT_CATEGORIES.slice();
           if (!s.categories.includes('Other')) s.categories.push('Other');
+          s.budgets = Array.isArray(s.budgets) ? s.budgets : [];
+          s.notifications = Array.isArray(s.notifications) ? s.notifications : [];
+          if (!s.budgetsSeeded) {
+            // Data saved before budgets existed: give the sample accounts their sample budgets.
+            const ids = new Set(s.accounts.map((a) => a.id));
+            if (ids.has('s-acc-1')) s.budgets.push(...makeSample().budgets.filter((b) => b.accounts === 'all' || b.accounts.every((id) => ids.has(id))));
+            s.budgetsSeeded = true;
+          }
           return s;
         }
       }
     } catch (e) { storageOk = false; }
     // First visit: start with sample data.
-    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice() }, makeSample());
+    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
   }
 
   function save() {
@@ -646,10 +834,19 @@
       if (r() < 0.05) add(pick([cash, chk]), 'expense', between(60, 240), 'Entertainment', pick(['Cinema', 'Bowling', 'Boulevard tickets']), ds);
       if (r() < 0.03) add(chk, 'expense', between(45, 380), 'Health', pick(['Pharmacy - Nahdi', 'Dental checkup', 'Clinic visit']), ds);
     }
-    return { accounts, transactions: tx, categories: DEFAULT_CATEGORIES.slice(0, 6).concat(['Salary', 'Other']) };
+    const startMonth = monthKey(start);
+    const budget = (id, name, limit, category, accts) => ({ id, name, limit, category, accounts: accts, startMonth, history: {}, alerts: null, sample: true });
+    const budgets = [
+      budget('s-bud-1', 'Groceries & dining', 2000, 'Food', 'all'),
+      budget('s-bud-2', 'Monthly spending', 9500, 'all', 'all'),
+      budget('s-bud-3', 'Online shopping', 1200, 'Shopping', [card]),
+      budget('s-bud-4', 'Getting around', 750, 'Transport', [chk, card]),
+      budget('s-bud-5', 'Fun money', 400, 'Entertainment', [chk, cash, card])
+    ];
+    return { accounts, transactions: tx, budgets, categories: DEFAULT_CATEGORIES.slice(0, 6).concat(['Salary', 'Other']) };
   }
 
-  const hasSample = () => state.accounts.some((a) => a.sample) || state.transactions.some((t) => t.sample);
+  const hasSample = () => state.accounts.some((a) => a.sample) || state.transactions.some((t) => t.sample) || state.budgets.some((b) => b.sample);
 
   // ---------- Derived data ----------
   const accById = (id) => state.accounts.find((a) => a.id === id);
@@ -686,6 +883,88 @@
     return { start: iso(new Date(now.getFullYear(), now.getMonth(), 1)), end, label: monthYearFmt.format(now) };
   }
 
+  // ---------- Budgets: model ----------
+  // A budget is { id, name, limit, category ('all' | name), accounts ('all' | [ids]), startMonth, history, alerts }.
+  // Spending is always derived from transactions, so edits to transactions flow straight into budgets.
+  // history['YYYY-MM'] = { limit, spent, within } for each finished month; the limit is frozen when the month closes.
+  const ALERT_LEVELS = [80, 100];
+  const STATUS_LABEL = { ok: 'On track', near: 'Near limit', over: 'Over budget' };
+  const monthKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+  const nextMonthKey = (k) => { const [y, m] = k.split('-').map(Number); return monthKey(new Date(y, m, 1)); };
+  const monthKeyLabel = (k, f = monthYearFmt) => { const [y, m] = k.split('-').map(Number); return f.format(new Date(y, m - 1, 1)); };
+  const budgetById = (id) => state.budgets.find((b) => b.id === id);
+
+  function budgetMatches(b, t) {
+    return t.type === 'expense' &&
+      (b.category === 'all' || t.category === b.category) &&
+      (b.accounts === 'all' || b.accounts.includes(t.accountId));
+  }
+
+  function budgetSpent(b, key) {
+    let sum = 0;
+    for (const t of state.transactions) if (t.date.slice(0, 7) === key && budgetMatches(b, t)) sum += t.amount;
+    return round2(sum);
+  }
+
+  const budgetStatus = (pct) => (pct >= 100 ? 'over' : pct >= 75 ? 'near' : 'ok');
+
+  function budgetProgress(b, key = monthKey()) {
+    const limit = key === monthKey() ? b.limit : ((b.history[key] || {}).limit ?? b.limit);
+    const spent = budgetSpent(b, key);
+    const pct = limit > 0 ? (spent / limit) * 100 : 0;
+    return { limit, spent, remaining: round2(limit - spent), pct, status: budgetStatus(pct) };
+  }
+
+  function budgetScope(b) {
+    const cat = b.category === 'all' ? 'All spending' : b.category;
+    let acc;
+    if (b.accounts === 'all') acc = 'All accounts';
+    else if (!b.accounts.length) acc = 'No accounts';
+    else if (b.accounts.length === 1) acc = (accById(b.accounts[0]) || {}).name || '1 account';
+    else acc = `${b.accounts.length} accounts`;
+    return `${cat} · ${acc}`;
+  }
+
+  // Monthly reset: each finished month gets a history entry, and the current month starts from zero
+  // because spending is always counted for the current month only.
+  function syncBudgets() {
+    const cur = monthKey();
+    for (const b of state.budgets) {
+      b.history = b.history || {};
+      for (let k = b.startMonth || cur; k < cur; k = nextMonthKey(k)) if (!b.history[k]) b.history[k] = { limit: b.limit };
+      for (const k of Object.keys(b.history)) {
+        if (k >= cur) { delete b.history[k]; continue; }
+        const limit = b.history[k].limit, spent = budgetSpent(b, k);
+        b.history[k] = { limit, spent, within: spent <= limit };
+      }
+    }
+  }
+
+  // Raises each alert level (80%, 100%) at most once per budget per month.
+  function checkBudgetAlerts() {
+    const cur = monthKey(), fresh = [];
+    for (const b of state.budgets) {
+      if (!b.alerts || b.alerts.month !== cur) b.alerts = { month: cur, levels: [] };
+      const p = budgetProgress(b, cur);
+      const level = ALERT_LEVELS.slice().reverse().find((l) => p.pct >= l);
+      if (!level || b.alerts.levels.includes(level)) continue;
+      ALERT_LEVELS.forEach((l) => { if (l <= level && !b.alerts.levels.includes(l)) b.alerts.levels.push(l); });
+      const over = p.spent > p.limit;
+      const n = {
+        id: uid(), budgetId: b.id, month: cur, level, read: false, createdAt: Date.now(),
+        title: level >= 100 ? `${b.name}: budget ${over ? 'exceeded' : 'reached'}` : `${b.name}: ${Math.floor(p.pct)}% of budget used`,
+        body: level >= 100
+          ? `${fmt(p.spent)} spent of ${fmt(p.limit)}${over ? ` (${fmt(-p.remaining)} over)` : ''} in ${monthKeyLabel(cur)}.`
+          : `${fmt(p.spent)} of ${fmt(p.limit)} spent. ${fmt(p.remaining)} left for ${monthKeyLabel(cur)}.`
+      };
+      if (b.sample) n.sample = true;
+      state.notifications.unshift(n);
+      fresh.push(n);
+    }
+    state.notifications = state.notifications.slice(0, 100);
+    return fresh;
+  }
+
   // ---------- UI state ----------
   const ui = {
     tab: 'dashboard',
@@ -706,7 +985,23 @@
     renderTransactions();
     renderAccounts();
     renderCategories();
+    renderBudgetSummary();
+    renderBudgets();
+    renderBell();
+    if ($('#budgetDetailDialog').open) {
+      if (detailBudget && budgetById(detailBudget.id)) renderBudgetDetail(); else $('#budgetDetailDialog').close();
+    }
     if (ui.tab === 'dashboard' && !empty) renderCharts();
+  }
+
+  // Every data change goes through here: roll budgets forward, raise alerts, persist, redraw.
+  function commit(msg) {
+    syncBudgets();
+    const fresh = checkBudgetAlerts();
+    save();
+    renderAll();
+    if (msg) toast(msg);
+    deliverAlerts(fresh);
   }
 
   function renderSummary() {
@@ -829,13 +1124,188 @@
     $('#catList').innerHTML = chips + `<form class="cat-add" id="catAddForm"><input type="text" id="catAddInput" maxlength="30" placeholder="New category…" aria-label="New category name"><button class="btn" type="submit">Add</button></form>`;
   }
 
+  // ---------- Budgets: rendering ----------
+  function progressBar(p) {
+    const pct = Math.round(p.pct);
+    return `<div class="progress ${p.status}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(pct, 100)}" aria-valuetext="${pct}% used"><span style="width:${Math.min(100, Math.max(0, p.pct))}%"></span></div>`;
+  }
+  const statusPill = (status, label = STATUS_LABEL[status]) => `<span class="status ${status}">${esc(label)}</span>`;
+  const leftText = (p) => (p.remaining >= 0 ? `${fmt(p.remaining)} left` : `${fmt(-p.remaining)} over`);
+
+  function renderBudgets() {
+    const now = new Date();
+    const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate() + 1;
+    $('#budgetMonth').textContent = `Budgets · ${monthKeyLabel(monthKey())}`;
+    $('#budgetReset').textContent = `Budgets reset automatically on the 1st of each month (in ${daysLeft} day${daysLeft === 1 ? '' : 's'}). Past months are kept in each budget's history.`;
+    const cards = state.budgets.map((b) => {
+      const p = budgetProgress(b);
+      const past = Object.keys(b.history).sort().slice(-6);
+      const within = past.filter((k) => b.history[k].within).length;
+      const dots = past.length
+        ? `<span class="hist-dots" title="Last ${past.length} month${past.length === 1 ? '' : 's'}">${past.map((k) => `<i class="${b.history[k].within ? '' : 'over'}" title="${esc(monthKeyLabel(k))}: ${b.history[k].within ? 'within budget' : 'over budget'}"></i>`).join('')}&nbsp;${within}/${past.length} months within</span>`
+        : '<span class="hist-dots">No history yet</span>';
+      return `<div class="card budget-card">
+        <div class="top"><div><div class="name">${esc(b.name)}</div><div class="scope">${esc(budgetScope(b))}</div></div>${statusPill(p.status)}</div>
+        ${b.accounts !== 'all' && !b.accounts.length ? '<div class="warn-note">No accounts selected. Edit this budget to choose accounts.</div>' : ''}
+        ${progressBar(p)}
+        <div class="budget-nums"><span><strong class="num">${fmt(p.spent)}</strong> of <span class="num">${fmt(p.limit)}</span></span><strong class="num">${Math.round(p.pct)}%</strong></div>
+        <div class="budget-nums"><span class="num">${leftText(p)}</span>${dots}</div>
+        <div class="actions">
+          <button class="btn sm" data-budget-detail="${esc(b.id)}">Details &amp; history</button>
+          <button class="btn sm" data-edit-budget="${esc(b.id)}">Edit</button>
+        </div>
+      </div>`;
+    }).join('');
+    $('#budgetGrid').innerHTML = cards + `<button class="card add-card" data-action="add-budget"><span><strong style="font-size:22px">+</strong><br>Add budget</span></button>`;
+  }
+
+  function renderBudgetSummary() {
+    const has = state.budgets.length > 0;
+    $('#budgetDash').hidden = !has;
+    $('#budgetDashEmpty').hidden = has;
+    if (!has) return;
+    const ps = state.budgets.map((b) => ({ b, p: budgetProgress(b) }));
+    const over = ps.filter((x) => x.p.status === 'over').length;
+    const near = ps.filter((x) => x.p.status === 'near').length;
+    $('#bsumValue').textContent = `${ps.length - over} of ${ps.length}`;
+    $('#bsumLabel').textContent = `budget${ps.length === 1 ? '' : 's'} on track`;
+    $('#bsumSub').textContent = [near && `${near} near the limit`, over && `${over} over budget`].filter(Boolean).join(' · ') || 'Everything is within budget.';
+    $('#bsumList').innerHTML = ps.sort((a, b) => b.p.pct - a.p.pct).slice(0, 3).map(({ b, p }) =>
+      `<li><div class="row"><span>${esc(b.name)}</span><span class="num">${Math.round(p.pct)}%</span></div>${progressBar(p)}</li>`).join('');
+  }
+
+  let detailBudget = null;
+  function openBudgetDetail(id) {
+    const b = budgetById(id);
+    if (!b) { toast('That budget no longer exists.'); return; }
+    detailBudget = b;
+    renderBudgetDetail();
+    if (!$('#budgetDetailDialog').open) $('#budgetDetailDialog').showModal();
+  }
+
+  function renderBudgetDetail() {
+    const b = detailBudget;
+    const cur = monthKey(), p = budgetProgress(b, cur);
+    const months = Object.keys(b.history).sort().reverse();
+    const within = months.filter((k) => b.history[k].within).length;
+    $('#bdTitle').textContent = b.name;
+    $('#bdBody').innerHTML = `
+      <div class="budget-nums"><span>${esc(budgetScope(b))}</span>${statusPill(p.status)}</div>
+      ${progressBar(p)}
+      <div class="budget-nums"><span><strong class="num">${fmt(p.spent)}</strong> of <span class="num">${fmt(p.limit)}</span> · <span class="num">${leftText(p)}</span></span><strong class="num">${Math.round(p.pct)}%</strong></div>
+      <div>
+        <div class="budget-nums" style="margin:8px 0 4px"><strong>Monthly history</strong><span>${months.length ? `${within} of ${months.length} month${months.length === 1 ? '' : 's'} within budget` : ''}</span></div>
+        <div class="hist-wrap"><table class="hist-table num">
+          <thead><tr><th>Month</th><th class="r">Limit</th><th class="r">Spent</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>${esc(monthKeyLabel(cur, shortMonthYearFmt))}</td><td class="r">${fmt(p.limit)}</td><td class="r">${fmt(p.spent)}</td><td>${statusPill(p.status, 'In progress')}</td></tr>
+            ${months.map((k) => {
+              const h = b.history[k];
+              return `<tr><td>${esc(monthKeyLabel(k, shortMonthYearFmt))}</td><td class="r">${fmt(h.limit)}</td><td class="r">${fmt(h.spent)}</td><td>${h.within ? statusPill('ok', 'Within') : statusPill('over', 'Over by ' + fmt(h.spent - h.limit))}</td></tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+        ${months.length ? '' : '<p class="tile-sub">When a month ends, its result is saved here automatically.</p>'}
+      </div>`;
+  }
+
+  // ---------- Notifications ----------
+  const canNotify = () => 'Notification' in window;
+  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+  function timeAgo(ts) {
+    const secs = (ts - Date.now()) / 1000;
+    for (const [unit, n] of [['day', 86400], ['hour', 3600], ['minute', 60]]) if (Math.abs(secs) >= n) return rtf.format(Math.round(secs / n), unit);
+    return 'just now';
+  }
+
+  function renderBell() {
+    const unread = state.notifications.filter((n) => !n.read).length;
+    $('#bellBadge').hidden = !unread;
+    $('#bellBadge').textContent = unread > 99 ? '99+' : String(unread);
+    $('#bellBtn').setAttribute('aria-label', `Notifications${unread ? ` (${unread} unread)` : ''}`);
+    let perm;
+    if (!canNotify()) perm = '<span>This browser can’t show system notifications. Alerts appear in the app.</span>';
+    else if (Notification.permission === 'granted') perm = '<span>Browser notifications are on.</span>';
+    else if (Notification.permission === 'denied') perm = '<span>Browser notifications are blocked, so alerts appear in the app only.</span>';
+    else perm = '<span>Get budget alerts as browser notifications too.</span><button class="btn sm" id="npEnable">Enable</button>';
+    $('#npPerm').innerHTML = perm;
+    $('#npMarkAll').disabled = !unread;
+    $('#npClear').disabled = !state.notifications.length;
+    $('#npList').innerHTML = state.notifications.length ? state.notifications.map((n) => `
+      <li class="np-item ${n.read ? '' : 'unread'}">
+        <span class="dot ${n.level >= 100 ? 'over' : ''}"></span>
+        <div class="body" data-open-notif="${esc(n.id)}" title="Open budget">
+          <div class="t">${esc(n.title)}</div><div class="b">${esc(n.body)}</div><div class="when">${timeAgo(n.createdAt)}</div>
+        </div>
+        <div class="acts">
+          ${n.read ? '' : `<button class="btn ghost sm icon-btn" data-read-notif="${esc(n.id)}" title="Mark as read" aria-label="Mark as read">✓</button>`}
+          <button class="btn ghost sm icon-btn" data-del-notif="${esc(n.id)}" title="Remove" aria-label="Remove notification">✕</button>
+        </div>
+      </li>`).join('') : '<li class="np-empty">No notifications. You’ll be alerted here when a budget reaches 80% and 100%.</li>';
+  }
+
+  function markRead(id) {
+    const n = state.notifications.find((x) => x.id === id);
+    if (n && !n.read) { n.read = true; save(); renderBell(); }
+    return n;
+  }
+
+  function showAlert(n) {
+    const el = document.createElement('div');
+    el.className = 'alert' + (n.level >= 100 ? ' over' : '');
+    el.setAttribute('role', 'alert');
+    el.innerHTML = `<div class="grow"><div class="t">${esc(n.title)}</div><div class="b">${esc(n.body)}</div></div><button class="btn ghost sm icon-btn" aria-label="Dismiss alert">✕</button>`;
+    el.querySelector('button').onclick = () => el.remove();
+    el.querySelector('.grow').onclick = () => {
+      el.remove();
+      if (n.id) markRead(n.id);
+      if (n.budgetId) openBudgetDetail(n.budgetId); else toggleNotifPanel(true);
+    };
+    $('#alerts').appendChild(el);
+    setTimeout(() => el.remove(), 8000);
+  }
+
+  function browserNotify(n) {
+    if (!canNotify() || Notification.permission !== 'granted') return;
+    try {
+      const bn = new Notification(n.title, { body: n.body, tag: n.id || 'moneytracker-budgets' });
+      bn.onclick = () => { window.focus(); if (n.id) markRead(n.id); if (n.budgetId) openBudgetDetail(n.budgetId); bn.close(); };
+    } catch (e) { /* e.g. mobile browsers that only allow notifications from a service worker */ }
+  }
+
+  function deliverAlerts(fresh) {
+    if (!fresh.length) return;
+    // Several at once (e.g. first load) collapse into one pop-up; each is still listed under the bell.
+    const max = window.matchMedia('(max-width: 560px)').matches ? 1 : 2;
+    const list = fresh.length > max
+      ? [{
+          title: `${fresh.length} budget alerts`,
+          body: fresh.map((n) => { const b = budgetById(n.budgetId); return `${b ? b.name : 'Budget'} ${n.level >= 100 ? 'is at its limit' : 'is at 80%'}`; }).join(' · ') + '. Tap to review.',
+          level: Math.max(...fresh.map((n) => n.level))
+        }]
+      : fresh;
+    list.forEach((n) => { showAlert(n); browserNotify(n); });
+  }
+
+  async function requestNotifPermission() {
+    if (!canNotify() || Notification.permission !== 'default') return;
+    try { await Notification.requestPermission(); } catch (e) {}
+    renderBell();
+  }
+
+  function toggleNotifPanel(open = $('#notifPanel').hidden) {
+    $('#notifPanel').hidden = !open;
+    $('#bellBtn').setAttribute('aria-expanded', String(open));
+    if (open) renderBell();
+  }
+
   // ---------- Charts ----------
   const charts = {};
   function destroyCharts() { Object.keys(charts).forEach((k) => { charts[k].destroy(); delete charts[k]; }); }
 
   function renderCharts() {
     if (!window.Chart) {
-      ['donutChart', 'barChart', 'lineChart'].forEach((id) => {
+      ['donutChart', 'barChart', 'lineChart', 'budgetChart'].forEach((id) => {
         const box = document.getElementById(id).parentElement;
         if (!box.querySelector('.chart-empty')) box.insertAdjacentHTML('beforeend', '<div class="chart-empty">Charts need an internet connection to load Chart.js.</div>');
       });
@@ -950,6 +1420,36 @@
         }
       }
     });
+
+    // --- Budgets: limit vs. actual this month (independent of the insight filters) ---
+    if (state.budgets.length) {
+      const ps = state.budgets.map((b) => ({ b, p: budgetProgress(b) }));
+      const statusColor = { ok: cssVar('--good'), near: cssVar('--warn'), over: cssVar('--bad') };
+      const bar = { borderRadius: 4, borderSkipped: 'start', maxBarThickness: 16, categoryPercentage: 0.72, barPercentage: 0.92 };
+      $('#budgetChartSub').textContent = `${monthKeyLabel(monthKey())} · each budget's own category and accounts`;
+      $('#budgetChartBox').style.height = Math.max(150, ps.length * 52 + 40) + 'px';
+      charts.budget = new Chart($('#budgetChart'), {
+        type: 'bar',
+        data: {
+          labels: ps.map((x) => x.b.name),
+          datasets: [
+            { label: 'Limit', data: ps.map((x) => x.p.limit), backgroundColor: cssVar('--limit'), ...bar },
+            { label: 'Spent', data: ps.map((x) => x.p.spent), backgroundColor: ps.map((x) => statusColor[x.p.status]), ...bar }
+          ]
+        },
+        options: {
+          indexAxis: 'y', maintainAspectRatio: false, animation: { duration: 250 },
+          scales: {
+            x: { ...axis, beginAtZero: true },
+            y: { grid: { display: false }, border: { color: grid }, ticks: { color: text2, callback: function (v) { const l = this.getLabelForValue(v); return l.length > 18 ? l.slice(0, 17) + '…' : l; } } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { ...tooltip, callbacks: { label: (ctx) => { const p = ps[ctx.dataIndex].p; return ctx.datasetIndex === 0 ? ` Limit: ${fmt(p.limit)}` : ` Spent: ${fmt(p.spent)} (${Math.round(p.pct)}%, ${STATUS_LABEL[p.status].toLowerCase()})`; } } }
+          }
+        }
+      });
+    }
   }
 
   // ---------- Tabs ----------
@@ -1041,10 +1541,8 @@
     };
     if (editingTx) Object.assign(editingTx, data);
     else state.transactions.push({ id: uid(), ...data });
-    save();
     $('#txDialog').close();
-    renderAll();
-    toast(editingTx ? 'Transaction updated' : 'Transaction added');
+    commit(editingTx ? 'Transaction updated' : 'Transaction added');
   });
 
   $('#txDelete').addEventListener('click', async () => {
@@ -1052,7 +1550,7 @@
     $('#txDialog').close();
     if (await confirmAsk('Delete transaction?', `“${editingTx.description || editingTx.category}” (${fmt(editingTx.amount)}) will be removed.`, 'Delete')) {
       state.transactions = state.transactions.filter((t) => t !== editingTx);
-      save(); renderAll(); toast('Transaction deleted');
+      commit('Transaction deleted');
     } else $('#txDialog').showModal();
   });
 
@@ -1109,27 +1607,28 @@
     const data = { name, type: f.type.value, startBalance: sb, color: accColor };
     if (editingAcc) Object.assign(editingAcc, data);
     else state.accounts.push({ id: uid(), ...data });
-    save();
     $('#accDialog').close();
-    renderAll();
-    toast(editingAcc ? 'Account updated' : 'Account added');
+    commit(editingAcc ? 'Account updated' : 'Account added');
   });
   $('#accDelete').addEventListener('click', async () => {
     if (!editingAcc) return;
     const n = state.transactions.filter((t) => t.accountId === editingAcc.id).length;
     $('#accDialog').close();
-    const ok = await confirmAsk('Delete account?', `“${editingAcc.name}” and its ${n} transaction${n === 1 ? '' : 's'} will be permanently removed.`, 'Delete account');
+    const nb = state.budgets.filter((b) => b.accounts !== 'all' && b.accounts.includes(editingAcc.id)).length;
+    const ok = await confirmAsk('Delete account?', `“${editingAcc.name}” and its ${n} transaction${n === 1 ? '' : 's'} will be permanently removed.` +
+      (nb ? ` It will also be removed from ${nb} budget${nb === 1 ? '' : 's'}.` : ''), 'Delete account');
     if (ok) {
       const id = editingAcc.id;
       state.accounts = state.accounts.filter((a) => a.id !== id);
       state.transactions = state.transactions.filter((t) => t.accountId !== id);
-      save(); renderAll(); toast('Account deleted');
+      state.budgets.forEach((b) => { if (b.accounts !== 'all') b.accounts = b.accounts.filter((x) => x !== id); });
+      commit('Account deleted');
     } else $('#accDialog').showModal();
   });
 
   // ---------- CSV export ----------
   function exportCSV() {
-    if (!state.transactions.length && !state.accounts.length) { toast('Nothing to export yet.'); return; }
+    if (!state.transactions.length && !state.accounts.length && !state.budgets.length) { toast('Nothing to export yet.'); return; }
     const q = (v) => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const rows = [['Date', 'Account', 'Account Type', 'Type', 'Category', 'Description', 'Amount (SAR)', 'Signed Amount (SAR)']];
     state.transactions.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((t) => {
@@ -1139,6 +1638,20 @@
     rows.push([]);
     rows.push(['Account', 'Account Type', 'Starting Balance (SAR)', 'Current Balance (SAR)']);
     state.accounts.forEach((a) => rows.push([a.name, ACC_TYPES[a.type] || a.type, Number(a.startBalance).toFixed(2), balanceOf(a).toFixed(2)]));
+    if (state.budgets.length) {
+      rows.push([]);
+      rows.push(['Budget', 'Category', 'Accounts', 'Month', 'Limit (SAR)', 'Spent (SAR)', 'Result']);
+      state.budgets.forEach((b) => {
+        const accs = b.accounts === 'all' ? 'All accounts' : b.accounts.map((id) => (accById(id) || {}).name).filter(Boolean).join('; ');
+        const cat = b.category === 'all' ? 'All spending' : b.category;
+        const p = budgetProgress(b);
+        rows.push([b.name, cat, accs, monthKey(), p.limit.toFixed(2), p.spent.toFixed(2), 'In progress']);
+        Object.keys(b.history).sort().reverse().forEach((k) => {
+          const h = b.history[k];
+          rows.push([b.name, cat, accs, k, h.limit.toFixed(2), h.spent.toFixed(2), h.within ? 'Within budget' : 'Over budget']);
+        });
+      });
+    }
     const csv = '﻿' + rows.map((r) => r.map(q).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -1173,23 +1686,30 @@
   }));
 
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-add-tx-account],[data-action="add-account"],[data-del-cat]');
+    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-add-tx-account],[data-action],[data-del-cat],[data-goto],[data-budget-detail],[data-edit-budget]');
     if (!t) return;
     if (t.dataset.editTx) openTxDialog(state.transactions.find((x) => x.id === t.dataset.editTx));
     else if (t.dataset.editAccount) openAccDialog(accById(t.dataset.editAccount));
     else if (t.dataset.viewAccount) viewAccountTransactions(t.dataset.viewAccount);
     else if (t.dataset.addTxAccount) openTxDialog(null, t.dataset.addTxAccount);
     else if (t.dataset.action === 'add-account') openAccDialog(null);
+    else if (t.dataset.action === 'add-budget') openBudgetDialog(null);
+    else if (t.dataset.goto) setTab(t.dataset.goto);
+    else if (t.dataset.budgetDetail) openBudgetDetail(t.dataset.budgetDetail);
+    else if (t.dataset.editBudget) openBudgetDialog(budgetById(t.dataset.editBudget));
     else if (t.dataset.delCat) deleteCategory(t.dataset.delCat);
   });
 
   async function deleteCategory(name) {
     const n = state.transactions.filter((t) => t.category === name).length;
-    const ok = await confirmAsk('Delete category?', n ? `${n} transaction${n === 1 ? '' : 's'} in “${name}” will move to “Other”.` : `“${name}” will be removed.`, 'Delete');
+    const nb = state.budgets.filter((b) => b.category === name).length;
+    const ok = await confirmAsk('Delete category?', (n ? `${n} transaction${n === 1 ? '' : 's'} in “${name}” will move to “Other”.` : `“${name}” will be removed.`) +
+      (nb ? ` ${nb} budget${nb === 1 ? '' : 's'} tracking it will track “Other” instead.` : ''), 'Delete');
     if (!ok) return;
     state.categories = state.categories.filter((c) => c !== name);
     state.transactions.forEach((t) => { if (t.category === name) t.category = 'Other'; });
-    save(); renderAll();
+    state.budgets.forEach((b) => { if (b.category === name) b.category = 'Other'; });
+    commit();
   }
 
   document.addEventListener('submit', (e) => {
@@ -1221,33 +1741,142 @@
     syncFilterInputs(); renderTransactions();
   });
 
+  // ---------- Budget dialog ----------
+  let editingBudget = null;
+  function syncBudgetScopeUI() {
+    $('#budgetAccChecks').hidden = $('#budgetForm').querySelector('input[name=scope]:checked').value !== 'some';
+  }
+  function openBudgetDialog(b) {
+    editingBudget = b || null;
+    const f = $('#budgetForm');
+    $('#budgetDlgTitle').textContent = b ? 'Edit budget' : 'Add budget';
+    $('#budgetDelete').hidden = !b;
+    $('#budgetErr').textContent = '';
+    f.name.value = b ? b.name : '';
+    f.limit.value = b ? b.limit : '';
+    const cats = state.categories.slice();
+    if (b && b.category !== 'all' && !cats.includes(b.category)) cats.push(b.category);
+    f.category.innerHTML = '<option value="all">All spending</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+    f.category.value = b ? b.category : 'all';
+    const some = !!b && b.accounts !== 'all';
+    const selected = some ? b.accounts : [];
+    f.querySelector(`input[name=scope][value=${some ? 'some' : 'all'}]`).checked = true;
+    $('#budgetAccChecks').innerHTML = state.accounts.length
+      ? state.accounts.map((a) => `<label><input type="checkbox" name="acc" value="${esc(a.id)}" ${selected.includes(a.id) ? 'checked' : ''}><span class="swatch-dot" style="background:${esc(a.color)}"></span>${esc(a.name)}</label>`).join('')
+      : '<span class="tile-sub">No accounts yet.</span>';
+    syncBudgetScopeUI();
+    $('#budgetDialog').showModal();
+    setTimeout(() => f.name.focus(), 30);
+  }
+  $('#budgetForm').addEventListener('change', (e) => { if (e.target.name === 'scope') syncBudgetScopeUI(); });
+  $('#budgetForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const name = f.name.value.trim();
+    const limit = round2(parseFloat(f.limit.value));
+    const some = f.querySelector('input[name=scope]:checked').value === 'some';
+    const accounts = some ? $$('input[name=acc]:checked', f).map((i) => i.value) : 'all';
+    const err = !name ? 'Give the budget a name.'
+      : !(limit > 0) ? 'Enter a monthly limit greater than zero.'
+      : some && !accounts.length ? 'Pick at least one account, or choose “All accounts”.' : '';
+    if (err) { $('#budgetErr').textContent = err; return; }
+    const data = { name, limit, category: f.category.value, accounts };
+    const isNew = !editingBudget;
+    if (editingBudget) Object.assign(editingBudget, data);
+    else state.budgets.push({ id: uid(), ...data, startMonth: monthKey(), history: {}, alerts: null });
+    $('#budgetDialog').close();
+    commit(isNew ? 'Budget added' : 'Budget updated');
+    if (isNew) requestNotifPermission(); // asked in response to a click, which browsers require
+  });
+  $('#budgetDelete').addEventListener('click', async () => {
+    if (!editingBudget) return;
+    $('#budgetDialog').close();
+    if (await confirmAsk('Delete budget?', `“${editingBudget.name}”, its monthly history and its alerts will be removed. Your transactions aren’t affected.`, 'Delete budget')) {
+      const id = editingBudget.id;
+      state.budgets = state.budgets.filter((b) => b.id !== id);
+      state.notifications = state.notifications.filter((n) => n.budgetId !== id);
+      commit('Budget deleted');
+    } else $('#budgetDialog').showModal();
+  });
+
+  $('#bdEdit').addEventListener('click', () => { const b = detailBudget; $('#budgetDetailDialog').close(); openBudgetDialog(b); });
+  $('#bdTx').addEventListener('click', () => {
+    const b = detailBudget;
+    if (!b) return;
+    const now = new Date();
+    const single = b.accounts !== 'all' && b.accounts.length === 1;
+    ui.filters = {
+      q: '', account: single ? b.accounts[0] : 'all', category: b.category === 'all' ? 'all' : b.category, type: 'expense',
+      from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(new Date(now.getFullYear(), now.getMonth() + 1, 0)), sort: 'date-desc'
+    };
+    $('#budgetDetailDialog').close();
+    renderAccountSelects(); syncFilterInputs(); renderTransactions(); setTab('transactions');
+    if (b.accounts !== 'all' && b.accounts.length > 1) toast(`Showing all accounts. This budget covers ${b.accounts.length} of them.`);
+  });
+
+  // ---------- Notification bell ----------
+  $('#bellBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleNotifPanel(); });
+  $('#notifPanel').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const t = e.target.closest('button, [data-open-notif]');
+    if (!t) return;
+    if (t.id === 'npEnable') { requestNotifPermission(); return; }
+    if (t.dataset.openNotif) {
+      const n = markRead(t.dataset.openNotif);
+      toggleNotifPanel(false);
+      if (n && n.budgetId) openBudgetDetail(n.budgetId);
+      return;
+    }
+    if (t.id === 'npMarkAll') state.notifications.forEach((n) => { n.read = true; });
+    else if (t.id === 'npClear') state.notifications = [];
+    else if (t.dataset.readNotif) { markRead(t.dataset.readNotif); return; }
+    else if (t.dataset.delNotif) state.notifications = state.notifications.filter((n) => n.id !== t.dataset.delNotif);
+    else return;
+    save(); renderBell();
+  });
+  document.addEventListener('click', () => { if (!$('#notifPanel').hidden) toggleNotifPanel(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#notifPanel').hidden) toggleNotifPanel(false); });
+
   $('#clearSampleBtn').addEventListener('click', async () => {
-    const ok = await confirmAsk('Clear sample data?', 'This removes the sample accounts and transactions, including anything you added to those sample accounts. Accounts you created yourself are kept.', 'Clear sample data');
+    const ok = await confirmAsk('Clear sample data?', 'This removes the sample accounts, transactions and budgets, including anything you added to those sample accounts. Accounts and budgets you created yourself are kept.', 'Clear sample data');
     if (!ok) return;
     const sampleAccIds = new Set(state.accounts.filter((a) => a.sample).map((a) => a.id));
     state.accounts = state.accounts.filter((a) => !a.sample);
     state.transactions = state.transactions.filter((t) => !t.sample && !sampleAccIds.has(t.accountId));
+    state.budgets = state.budgets.filter((b) => !b.sample);
+    state.budgets.forEach((b) => { if (b.accounts !== 'all') b.accounts = b.accounts.filter((id) => !sampleAccIds.has(id)); });
+    state.notifications = state.notifications.filter((n) => budgetById(n.budgetId));
     // Drop the sample-only "Salary" category if nothing uses it.
     if (!state.transactions.some((t) => t.category === 'Salary') && !DEFAULT_CATEGORIES.includes('Salary')) state.categories = state.categories.filter((c) => c !== 'Salary');
     ui.chartAccount = 'all';
     ui.filters.account = 'all';
-    save(); renderAll(); toast('Sample data cleared');
+    commit('Sample data cleared');
   });
 
   $('#loadSampleBtn').addEventListener('click', () => {
     const s = makeSample();
     state.accounts.push(...s.accounts);
     state.transactions.push(...s.transactions);
+    state.budgets.push(...s.budgets.filter((b) => !budgetById(b.id)));
     s.categories.forEach((c) => { if (!state.categories.includes(c)) addCategory(c); });
-    save(); renderAll(); toast('Sample data loaded');
+    commit('Sample data loaded');
   });
 
   // ---------- Init ----------
   state = load();
-  save();
   paintThemeBtn();
   syncFilterInputs();
-  renderAll();
+  commit();
+
+  // Roll budgets over when the month changes while the app is open (or when it's brought back to the foreground).
+  let currentMonth = monthKey();
+  function checkMonthRollover() {
+    if (monthKey() === currentMonth) return;
+    currentMonth = monthKey();
+    commit(state.budgets.length ? `New month: your budgets have reset for ${monthKeyLabel(currentMonth)}.` : '');
+  }
+  setInterval(checkMonthRollover, 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkMonthRollover(); });
 })();
 </script>
 </body>
