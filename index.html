@@ -475,8 +475,22 @@
   .set-icon { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--accent); }
   .set-icon svg { width: 19px; height: 19px; }
   .set-row .chev { color: var(--muted); font-size: 22px; line-height: 1; flex: none; }
-  .set-sub { font-size: 14px; font-weight: 600; color: var(--text-2); margin: 16px 2px 6px; }
   .set-row.block > * { min-width: 0; } /* let rows like the manual exchange rate shrink to a phone's width */
+  .set-row.danger .t { color: var(--neg); }
+  .set-row.danger .set-icon { background: color-mix(in srgb, var(--neg) 13%, transparent); color: var(--neg); }
+
+  /* Settings menu → section pages: the new page slides in from the right; going back, it slides away to the right. */
+  .set-pages { position: relative; overflow-x: clip; }
+  .set-page { background: var(--bg); }
+  .set-page.set-leaving { position: absolute; left: 0; right: 0; pointer-events: none; }
+  .set-page.from-right { position: relative; z-index: 1; animation: set-from-right 260ms var(--dlg-ease); box-shadow: -10px 0 28px -12px rgba(0,0,0,.25); }
+  .set-page.to-left { z-index: 0; animation: set-to-left 260ms var(--dlg-ease) forwards; }
+  .set-page.to-right { z-index: 2; animation: set-to-right 260ms var(--dlg-ease) forwards; box-shadow: -10px 0 28px -12px rgba(0,0,0,.25); }
+  .set-page.from-left { animation: set-from-left 260ms var(--dlg-ease); }
+  @keyframes set-from-right { from { transform: translateX(100%); } }
+  @keyframes set-to-left { to { transform: translateX(-25%); opacity: 0; } }
+  @keyframes set-to-right { to { transform: translateX(100%); } }
+  @keyframes set-from-left { from { transform: translateX(-25%); opacity: 0; } }
 
   /* "Include in total balance" */
   .check-row { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
@@ -878,74 +892,147 @@
 
   <!-- SETTINGS (opened from the gear in the header; not a tab) -->
   <section class="view" id="view-settings" hidden>
-    <div class="acc-head">
-      <button class="btn icon-btn" id="setBack" aria-label="Back" title="Back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
-      <div class="grow"><h2>Settings</h2></div>
-    </div>
-
-    <h2 class="section">General</h2>
-    <div class="card set-list">
-      <button class="set-row tap" id="setTheme">
-        <span class="set-icon" id="setThemeIcon" aria-hidden="true"></span>
-        <span class="grow"><span class="t">Appearance</span><span class="d" id="setThemeDesc"></span></span>
-        <span class="chev" aria-hidden="true">›</span>
-      </button>
-    </div>
-
-    <h2 class="section">Categories</h2>
-    <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
-    <div class="card cat-list" id="catList"></div>
-
-    <h2 class="section">Notifications</h2>
-    <div class="card set-list">
-      <div class="set-row" id="setNotifRow">
-        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
-        <span class="grow"><span class="t">Budget alerts</span><span class="d" id="setNotifDesc"></span></span>
-        <button class="btn sm" id="setNotifEnable" hidden>Enable</button>
+    <!-- Settings is a menu of sections; each opens as its own page that slides in from the right.
+         The pages keep their original ids, so the code that renders and handles each option is unchanged. -->
+    <div class="set-pages">
+      <div class="set-page" data-set-page="main">
+        <div class="acc-head">
+          <button class="btn icon-btn" id="setBack" aria-label="Back" title="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="grow"><h2>Settings</h2></div>
+        </div>
+        <div class="card set-list">
+          <button class="set-row tap" data-set-open="appearance">
+            <span class="set-icon" id="menuThemeIcon" aria-hidden="true"></span>
+            <span class="grow"><span class="t">Appearance</span><span class="d" id="menuThemeDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" data-set-open="categories">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span>
+            <span class="grow"><span class="t">Categories</span><span class="d" id="menuCatDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" data-set-open="detection">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+            <span class="grow"><span class="t">Automatic purchase detection</span><span class="d" id="menuDetectDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" data-set-open="currency">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"/><path d="M15.4 9.6A6 6 0 1 1 9.6 15.4"/></svg></span>
+            <span class="grow"><span class="t">Currency</span><span class="d num" id="menuCurDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" data-set-open="data">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span>
+            <span class="grow"><span class="t">Data</span><span class="d">Import, export, backup and sample data</span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+        </div>
       </div>
-    </div>
-    <h3 class="set-sub" id="detect">Automatic purchase detection</h3>
-    <p class="tile-sub" style="margin:-2px 2px 10px">Spot card purchases in your bank’s SMS or app notifications and add them in a tap. Everything stays on this phone.</p>
-    <div class="card set-list" id="detectSettings"></div>
-    <div class="card set-list" id="detectTest" style="margin-top:12px" hidden>
-      <div class="set-row block">
-        <div><div class="t">Test with a sample message</div>
-        <div class="d">Paste a bank SMS to see what would be detected. It’s checked on this phone and isn’t saved.</div></div>
-        <input type="text" id="ptSender" placeholder="Sender (optional), e.g. AlRajhiBank" autocomplete="off" aria-label="Sender">
-        <textarea class="msg" id="ptText" dir="auto" placeholder="Paste a message…" aria-label="Sample message"></textarea>
-        <div><button class="btn" id="ptRun">Test</button></div>
-        <div class="parse-out" id="ptOut" hidden aria-live="polite"></div>
+
+      <div class="set-page" data-set-page="appearance" hidden>
+        <div class="acc-head">
+          <button class="btn icon-btn" data-set-back aria-label="Back to Settings" title="Back to Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="grow"><h2>Appearance</h2></div>
+        </div>
+        <div class="card set-list">
+          <button class="set-row tap" id="setTheme">
+            <span class="set-icon" id="setThemeIcon" aria-hidden="true"></span>
+            <span class="grow"><span class="t">Theme</span><span class="d" id="setThemeDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+        </div>
       </div>
-    </div>
 
-    <h2 class="section" id="ratesSection">Currency</h2>
-    <p class="tile-sub" style="margin:-4px 2px 10px">Exchange rates show other-currency accounts in SAR. Updated once a day; a manual rate replaces the fetched one.</p>
-    <div class="card set-list" id="ratesList"></div>
+      <div class="set-page" data-set-page="categories" hidden>
+        <div class="acc-head">
+          <button class="btn icon-btn" data-set-back aria-label="Back to Settings" title="Back to Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="grow"><h2>Categories</h2></div>
+        </div>
+        <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
+        <div class="card cat-list" id="catList"></div>
+      </div>
 
-    <h2 class="section" id="importSection">Data</h2>
-    <div class="card set-list">
-      <button class="set-row tap" id="exportRow">
-        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
-        <span class="grow"><span class="t">Export CSV</span><span class="d">Save all transactions, accounts and budgets as a spreadsheet file.</span></span>
-        <span class="chev" aria-hidden="true">›</span>
-      </button>
-      <button class="set-row tap" id="importOpen">
-        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></svg></span>
-        <span class="grow"><span class="t">Import from Monefy</span><span class="d">Bring in accounts, transactions and transfers from a Monefy CSV export.</span></span>
-        <span class="chev" aria-hidden="true">›</span>
-      </button>
-      <button class="set-row tap" id="backupRow" hidden>
-        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg></span>
-        <span class="grow"><span class="t">Restore backup</span><span class="d" id="backupDesc"></span></span>
-        <span class="chev" aria-hidden="true">›</span>
-      </button>
-      <button class="set-row tap" id="sampleRow">
-        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L4.5 18.5A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.5L14 9V3"/></svg></span>
-        <span class="grow"><span class="t" id="sampleRowTitle"></span><span class="d" id="sampleRowDesc"></span></span>
-        <span class="chev" aria-hidden="true">›</span>
-      </button>
+      <div class="set-page" data-set-page="detection" hidden>
+        <div class="acc-head">
+          <button class="btn icon-btn" data-set-back aria-label="Back to Settings" title="Back to Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="grow"><h2>Automatic purchase detection</h2></div>
+        </div>
+        <p class="tile-sub" style="margin:-4px 2px 10px">Spot card purchases in your bank’s SMS or app notifications and add them in a tap. Everything stays on this phone.</p>
+        <div class="card set-list" id="detectSettings"></div>
+        <div class="card set-list" id="detectTest" style="margin-top:12px" hidden>
+          <div class="set-row block">
+            <div><div class="t">Test with a sample message</div>
+            <div class="d">Paste a bank SMS to see what would be detected. It’s checked on this phone and isn’t saved.</div></div>
+            <input type="text" id="ptSender" placeholder="Sender (optional), e.g. AlRajhiBank" autocomplete="off" aria-label="Sender">
+            <textarea class="msg" id="ptText" dir="auto" placeholder="Paste a message…" aria-label="Sample message"></textarea>
+            <div><button class="btn" id="ptRun">Test</button></div>
+            <div class="parse-out" id="ptOut" hidden aria-live="polite"></div>
+          </div>
+        </div>
+        <h2 class="section">Budget alerts</h2>
+        <div class="card set-list">
+          <div class="set-row" id="setNotifRow">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+            <span class="grow"><span class="t">Budget alerts</span><span class="d" id="setNotifDesc"></span></span>
+            <button class="btn sm" id="setNotifEnable" hidden>Enable</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="set-page" data-set-page="currency" hidden>
+        <div class="acc-head">
+          <button class="btn icon-btn" data-set-back aria-label="Back to Settings" title="Back to Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="grow"><h2>Currency</h2></div>
+        </div>
+        <p class="tile-sub" style="margin:-4px 2px 10px">Exchange rates show other-currency accounts in SAR. Updated once a day; a manual rate replaces the fetched one.</p>
+        <div class="card set-list" id="ratesList"></div>
+      </div>
+
+      <div class="set-page" data-set-page="data" hidden>
+        <div class="acc-head">
+          <button class="btn icon-btn" data-set-back aria-label="Back to Settings" title="Back to Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="grow"><h2>Data</h2></div>
+        </div>
+        <div class="card set-list">
+          <button class="set-row tap" id="exportRow">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+            <span class="grow"><span class="t">Export CSV</span><span class="d">Save all transactions, accounts and budgets as a spreadsheet file.</span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" id="importOpen">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></svg></span>
+            <span class="grow"><span class="t">Import from Monefy</span><span class="d">Bring in accounts, transactions and transfers from a Monefy CSV export.</span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" id="backupRow" hidden>
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg></span>
+            <span class="grow"><span class="t">Restore backup</span><span class="d" id="backupDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap" id="sampleRow">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L4.5 18.5A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.5L14 9V3"/></svg></span>
+            <span class="grow"><span class="t" id="sampleRowTitle"></span><span class="d" id="sampleRowDesc"></span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="set-row tap danger" id="clearDataRow">
+            <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg></span>
+            <span class="grow"><span class="t">Clear all data</span><span class="d">Delete every account, transaction, budget and category on this phone. A backup is saved first.</span></span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -1767,12 +1854,53 @@
   }
 
   // ---------- Settings page ----------
-  // Opened from the gear in the header. Its sections (categories, detection, exchange rates, import…) are rendered by
-  // their own code as before; this only handles getting there and back, and the simple rows.
+  // Opened from the gear in the header: a menu whose rows open one section each on its own page (sliding in from the
+  // right, and back). The sections (categories, detection, exchange rates, import…) are rendered by their own code as
+  // before; this only handles getting around, the menu's summaries and the simple rows.
   function openSettings() {
     if (ui.tab !== 'settings') ui.settingsFrom = { tab: ui.tab, scrollY: window.scrollY };
+    showSettingsPage('main', null); // always start at the menu
     setTab('settings');
   }
+
+  const SET_SLIDE_MS = 260;
+  let setMenuScroll = 0;
+  /** Shows a Settings page. dir: 'forward' (slides in from the right), 'back' (the page slides away to the right), or null. */
+  function showSettingsPage(name, dir) {
+    const pages = $$('#view-settings [data-set-page]');
+    const from = pages.find((p) => !p.hidden && !p.classList.contains('set-leaving'));
+    const to = pages.find((p) => p.dataset.setPage === name);
+    if (!to || from === to) return;
+    if (dir === 'forward') setMenuScroll = window.scrollY;
+    ui.settingsPage = name;
+    pages.forEach((p) => { if (p !== from && p !== to) { p.hidden = true; p.className = 'set-page'; } });
+    to.className = 'set-page';
+    to.hidden = false;
+    const scrollTop = dir === 'back' ? setMenuScroll : 0;
+    if (!from || !dir || reduceMotion.matches) {
+      if (from) { from.hidden = true; from.className = 'set-page'; }
+      window.scrollTo({ top: scrollTop });
+      return;
+    }
+    // The page that's leaving is taken out of the flow and animated on top (back) or behind (forward).
+    const offset = window.scrollY - scrollTop;
+    from.style.top = `${-offset}px`;
+    from.classList.add('set-leaving', dir === 'forward' ? 'to-left' : 'to-right');
+    to.classList.add(dir === 'forward' ? 'from-right' : 'from-left');
+    window.scrollTo({ top: scrollTop });
+    clearTimeout(from._leaveTimer);
+    from._leaveTimer = setTimeout(() => {
+      from.hidden = true;
+      from.className = 'set-page';
+      from.style.top = '';
+      to.className = 'set-page';
+    }, SET_SLIDE_MS);
+  }
+  $('#view-settings').addEventListener('click', (e) => {
+    const open = e.target.closest('[data-set-open]');
+    if (open) { showSettingsPage(open.dataset.setOpen, 'forward'); return; }
+    if (e.target.closest('[data-set-back]')) showSettingsPage('main', 'back');
+  });
   function closeSettings() {
     const from = ui.settingsFrom || { tab: 'dashboard', scrollY: 0 };
     setTab(from.tab === 'settings' ? 'dashboard' : from.tab);
@@ -1783,8 +1911,18 @@
 
   function renderSettingsRows() {
     const dark = isDark();
-    $('#setThemeIcon').innerHTML = dark ? MOON : SUN;
+    $('#setThemeIcon').innerHTML = $('#menuThemeIcon').innerHTML = dark ? MOON : SUN;
     $('#setThemeDesc').textContent = `${dark ? 'Dark' : 'Light'} mode. Tap to switch to ${dark ? 'light' : 'dark'}.`;
+    // Menu summaries: one short line per section, no details.
+    $('#menuThemeDesc').textContent = `${dark ? 'Dark' : 'Light'} mode`;
+    $('#menuCatDesc').textContent = `${state.categories.length} categor${state.categories.length === 1 ? 'y' : 'ies'}`;
+    $('#menuDetectDesc').textContent = !PD ? 'Available in the Android app'
+      : !detectConfig ? 'Spot card purchases in bank SMS'
+      : !detectConfig.enabled ? 'Off'
+      : `On · watching ${detectConfig.senders.length} sender${detectConfig.senders.length === 1 ? '' : 's'}${detectConfig.notificationsEnabled ? ` and ${detectConfig.apps.length} app${detectConfig.apps.length === 1 ? '' : 's'}` : ''}`;
+    const curs = foreignCurrencies();
+    $('#menuCurDesc').textContent = !curs.length ? 'All accounts in SAR'
+      : curs.map((c) => { const r = rateFor(c); return r ? rateText(r, c) : `${c}: no rate yet`; }).join(' · ');
     const np = notifPermission();
     $('#setNotifDesc').textContent =
       np === 'granted' ? `${NOTIF_NOUN} are on. You’re alerted when a budget reaches 80% and 100%.`
@@ -1797,6 +1935,19 @@
     $('#sampleRowDesc').textContent = sample ? 'Remove the sample accounts, transactions and budgets. Your own are kept.' : 'Add example accounts, transactions and budgets to explore the app.';
   }
   $('#setNotifEnable').addEventListener('click', async () => { await requestNotifPermission(); renderSettingsRows(); });
+
+  // Data → Clear all data: asks first, and saves a backup so Restore backup can undo it.
+  $('#clearDataRow').addEventListener('click', async () => {
+    const ok = await confirmAsk('Clear all data?', 'Every account, transaction, budget, category and alert on this phone will be deleted. A backup is saved first, so you can undo this with Restore backup.', 'Clear all data');
+    if (!ok) return;
+    if (!writeBackup('Before clearing all data', JSON.stringify(state))) { toast('Couldn’t save a backup (storage is full), so nothing was cleared.'); return; }
+    state = { accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, merchantCategories: {}, manualRates: {}, budgets: [], notifications: [], budgetsSeeded: true };
+    ui.chartAccount = 'all';
+    ui.filters = { q: '', account: 'all', category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' };
+    syncFilterInputs();
+    commit('All data cleared');
+    renderBackupRow();
+  });
 
   // ---------- Account order ----------
   // Reorder mode edits a draft (ui.reorder = [account ids]); Done applies it to state.accounts, whose order every
@@ -3925,6 +4076,7 @@
       try { [detectConfig, detectStatus] = await Promise.all([PD.getConfig(), PD.getStatus()]); } catch (e) { /* keep the last known values */ }
     }
     renderDetectSettings();
+    renderSettingsRows(); // the Settings menu's detection summary
   }
 
   async function saveDetect(changes) {
@@ -4180,7 +4332,7 @@
       else if ($$('.acc-menu').some((m) => !m.hidden)) closeAccMenus();
       else if (ui.reorder) finishReorder();
       else if (ui.tab === 'account') closeAccountDetails();
-      else if (ui.tab === 'settings') closeSettings();
+      else if (ui.tab === 'settings') { if (ui.settingsPage && ui.settingsPage !== 'main') showSettingsPage('main', 'back'); else closeSettings(); }
       else if (ui.tab !== 'dashboard') setTab('dashboard');
       else NativeApp.exitApp();
     });
