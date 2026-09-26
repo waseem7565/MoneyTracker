@@ -1,0 +1,15 @@
+{
+  "appId": "com.moneytracker.app",
+  "appName": "MoneyTracker",
+  "webDir": "www",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover"
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#2a78d6"
+    }
+  }
+}

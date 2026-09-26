@@ -96,7 +96,8 @@
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
   }
-  .topbar-inner, main { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  .topbar { padding-top: env(safe-area-inset-top); }
+  .topbar-inner, main { max-width: 1120px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
   .topbar-row { display: flex; align-items: center; gap: 8px; height: 56px; }
   .brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; margin-right: auto; }
   .brand-mark { width: 26px; height: 26px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; color: #fff; }
@@ -301,7 +302,7 @@
     background: var(--bad); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; line-height: 1;
   }
   .notif-panel { position: absolute; right: 0; top: 46px; width: 360px; max-height: min(480px, calc(100dvh - 80px)); display: flex; flex-direction: column; z-index: 40; overflow: hidden; }
-  @media (max-width: 480px) { .notif-panel { position: fixed; left: 12px; right: 12px; top: 60px; width: auto; } }
+  @media (max-width: 480px) { .notif-panel { position: fixed; left: 12px; right: 12px; top: calc(60px + env(safe-area-inset-top)); width: auto; } }
   .np-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--border); }
   .np-head div { display: flex; gap: 2px; }
   .np-perm { padding: 8px 16px; font-size: 12.5px; color: var(--text-2); border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
@@ -317,7 +318,7 @@
   .np-item .acts { display: flex; flex-direction: column; gap: 2px; }
   .np-empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
   .btn:disabled { opacity: .45; cursor: default; }
-  .alerts { position: fixed; top: 64px; right: 16px; z-index: 60; display: grid; gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+  .alerts { position: fixed; top: calc(64px + env(safe-area-inset-top)); right: 16px; z-index: 60; display: grid; gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none; }
   .alert {
     pointer-events: auto; display: flex; gap: 8px; align-items: flex-start; padding: 12px 8px 12px 14px; border-radius: 12px;
     background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warn);
@@ -732,6 +733,16 @@
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   };
   const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // ---------- Native (Capacitor) ----------
+  // In the Android app, capacitor.js is bundled and native plugins replace browser-only APIs
+  // (Web Notifications and download links don't exist in an Android WebView). In a browser these are all null.
+  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const nativePlugin = (name) => (isNative && window.Capacitor.registerPlugin && window.Capacitor.isPluginAvailable(name) ? window.Capacitor.registerPlugin(name) : null);
+  const LocalNotif = nativePlugin('LocalNotifications');
+  const NativeFS = nativePlugin('Filesystem');
+  const NativeShare = nativePlugin('Share');
+  const NativeApp = nativePlugin('App');
 
   let toastTimer;
   function toast(msg) {
@@ -1210,7 +1221,19 @@
   }
 
   // ---------- Notifications ----------
-  const canNotify = () => 'Notification' in window;
+  // 'granted' | 'denied' | 'default' | 'unsupported'. Native permission is async, so it's cached.
+  let nativeNotifPerm = 'default';
+  const toPerm = (display) => (display === 'granted' ? 'granted' : display === 'denied' ? 'denied' : 'default');
+  function notifPermission() {
+    if (LocalNotif) return nativeNotifPerm;
+    return 'Notification' in window ? Notification.permission : 'unsupported';
+  }
+  async function refreshNotifPerm() {
+    if (!LocalNotif) return;
+    try { nativeNotifPerm = toPerm((await LocalNotif.checkPermissions()).display); } catch (e) { nativeNotifPerm = 'unsupported'; }
+    renderBell();
+  }
+  const NOTIF_NOUN = LocalNotif ? 'Phone notifications' : 'Browser notifications';
   const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
   function timeAgo(ts) {
     const secs = (ts - Date.now()) / 1000;
@@ -1224,10 +1247,11 @@
     $('#bellBadge').textContent = unread > 99 ? '99+' : String(unread);
     $('#bellBtn').setAttribute('aria-label', `Notifications${unread ? ` (${unread} unread)` : ''}`);
     let perm;
-    if (!canNotify()) perm = '<span>This browser can’t show system notifications. Alerts appear in the app.</span>';
-    else if (Notification.permission === 'granted') perm = '<span>Browser notifications are on.</span>';
-    else if (Notification.permission === 'denied') perm = '<span>Browser notifications are blocked, so alerts appear in the app only.</span>';
-    else perm = '<span>Get budget alerts as browser notifications too.</span><button class="btn sm" id="npEnable">Enable</button>';
+    const np = notifPermission();
+    if (np === 'unsupported') perm = '<span>System notifications aren’t available here. Alerts appear in the app.</span>';
+    else if (np === 'granted') perm = `<span>${NOTIF_NOUN} are on.</span>`;
+    else if (np === 'denied') perm = `<span>${NOTIF_NOUN} are blocked${LocalNotif ? ' (you can allow them in Android settings)' : ''}, so alerts appear in the app only.</span>`;
+    else perm = `<span>Get budget alerts as ${NOTIF_NOUN.toLowerCase()} too.</span><button class="btn sm" id="npEnable">Enable</button>`;
     $('#npPerm').innerHTML = perm;
     $('#npMarkAll').disabled = !unread;
     $('#npClear').disabled = !state.notifications.length;
@@ -1265,8 +1289,15 @@
     setTimeout(() => el.remove(), 8000);
   }
 
+  let nativeNotifSeq = 0;
   function browserNotify(n) {
-    if (!canNotify() || Notification.permission !== 'granted') return;
+    if (notifPermission() !== 'granted') return;
+    if (LocalNotif) {
+      // Android notification ids must be 32-bit ints.
+      const id = (Math.floor(Date.now() / 1000) % 200000000) * 10 + (nativeNotifSeq++ % 10);
+      LocalNotif.schedule({ notifications: [{ id, title: n.title, body: n.body, extra: { budgetId: n.budgetId || null, notifId: n.id || null } }] }).catch(() => {});
+      return;
+    }
     try {
       const bn = new Notification(n.title, { body: n.body, tag: n.id || 'moneytracker-budgets' });
       bn.onclick = () => { window.focus(); if (n.id) markRead(n.id); if (n.budgetId) openBudgetDetail(n.budgetId); bn.close(); };
@@ -1288,8 +1319,11 @@
   }
 
   async function requestNotifPermission() {
-    if (!canNotify() || Notification.permission !== 'default') return;
-    try { await Notification.requestPermission(); } catch (e) {}
+    if (notifPermission() !== 'default') return;
+    try {
+      if (LocalNotif) nativeNotifPerm = toPerm((await LocalNotif.requestPermissions()).display);
+      else await Notification.requestPermission();
+    } catch (e) {}
     renderBell();
   }
 
@@ -1627,7 +1661,7 @@
   });
 
   // ---------- CSV export ----------
-  function exportCSV() {
+  async function exportCSV() {
     if (!state.transactions.length && !state.accounts.length && !state.budgets.length) { toast('Nothing to export yet.'); return; }
     const q = (v) => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const rows = [['Date', 'Account', 'Account Type', 'Type', 'Category', 'Description', 'Amount (SAR)', 'Signed Amount (SAR)']];
@@ -1653,10 +1687,21 @@
       });
     }
     const csv = '﻿' + rows.map((r) => r.map(q).join(',')).join('\r\n');
+    const filename = `moneytracker-${todayISO()}.csv`;
+    if (NativeFS && NativeShare) {
+      // Android WebView can't download blobs: write the file to the app cache and open the share sheet.
+      try {
+        const { uri } = await NativeFS.writeFile({ path: filename, data: csv, directory: 'CACHE', encoding: 'utf8' });
+        await NativeShare.share({ title: 'MoneyTracker export', dialogTitle: 'Save or send your CSV', files: [uri] });
+      } catch (e) {
+        if (!/cancel/i.test(String(e && e.message))) toast('Could not export the CSV.');
+      }
+      return;
+    }
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url; link.download = `moneytracker-${todayISO()}.csv`;
+    link.href = url; link.download = filename;
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast('CSV downloaded');
@@ -1866,7 +1911,18 @@
   state = load();
   paintThemeBtn();
   syncFilterInputs();
-  commit();
+  if (LocalNotif) {
+    // Learn the notification permission first so alerts raised on launch can reach the phone.
+    renderAll();
+    refreshNotifPerm().then(() => commit());
+    LocalNotif.addListener('localNotificationActionPerformed', ({ notification }) => {
+      const x = (notification && notification.extra) || {};
+      if (x.notifId) markRead(x.notifId);
+      if (x.budgetId) openBudgetDetail(x.budgetId);
+    });
+  } else {
+    commit();
+  }
 
   // Roll budgets over when the month changes while the app is open (or when it's brought back to the foreground).
   let currentMonth = monthKey();
@@ -1876,7 +1932,18 @@
     commit(state.budgets.length ? `New month: your budgets have reset for ${monthKeyLabel(currentMonth)}.` : '');
   }
   setInterval(checkMonthRollover, 60 * 1000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkMonthRollover(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthRollover(); refreshNotifPerm(); } });
+
+  if (NativeApp) {
+    // Android back button: close whatever is on top before leaving the app.
+    NativeApp.addListener('backButton', () => {
+      const openDialog = $$('dialog').find((d) => d.open);
+      if (openDialog) openDialog.close();
+      else if (!$('#notifPanel').hidden) toggleNotifPanel(false);
+      else if (ui.tab !== 'dashboard') setTab('dashboard');
+      else NativeApp.exitApp();
+    });
+  }
 })();
 </script>
 </body>

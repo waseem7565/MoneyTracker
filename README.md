@@ -18,3 +18,31 @@ A personal expense tracker in a single self-contained HTML file (`index.html`). 
 All data, including budgets and notifications, is stored in one localStorage key (`moneytracker.v1`). A budget's spending is always recalculated from your transactions, so editing or deleting transactions, accounts or categories updates your budgets straight away.
 
 Chart.js loads from cdnjs, so the charts need an internet connection. Everything else works offline.
+
+## Android app (Capacitor)
+
+The same `index.html` is packaged as an Android app with [Capacitor](https://capacitorjs.com/). `npm run build:web` copies it into `www/`. In the app bundle, Chart.js ships inside the app instead of loading from the CDN, so charts work offline. Inside the app:
+
+- **Budget alerts** are sent as Android notifications through `@capacitor/local-notifications`. Tapping one opens that budget.
+- **Export CSV** saves the file with `@capacitor/filesystem` and opens the Android share sheet (`@capacitor/share`), so you can save it to Files/Drive or send it.
+- **The back button** closes the open dialog or panel first, then returns to the dashboard, then exits.
+
+### Get the APK from GitHub Actions
+
+Every push that changes the app runs `.github/workflows/android-apk.yml`, which builds a debug APK. Open the repository's **Actions** tab, select the latest **Android APK** run, and download the `MoneyTracker-debug-apk` artifact (a zip containing `app-debug.apk`). You can also start a build by hand with **Run workflow**.
+
+### Build locally
+
+You need Node 22, JDK 21 and the Android SDK (Android Studio installs it; set `ANDROID_HOME`).
+
+```bash
+npm install
+npm run android:debug       # builds android/app/build/outputs/apk/debug/app-debug.apk
+npm run android:open        # or open the project in Android Studio
+```
+
+After editing `index.html`, run `npm run sync` to copy the change into the Android project.
+
+The debug APK is signed with a debug key, so you can sideload it onto a phone (allow "install unknown apps"). To publish on Google Play, build a signed release (`./gradlew bundleRelease` with your own keystore) instead.
+
+App icons and splash screens are generated from `assets/` with `npx @capacitor/assets generate --android`.
