@@ -465,6 +465,17 @@
   .acc-menu button:hover { background: var(--surface-2); }
   .acc-menu button.danger { color: var(--neg); }
 
+  /* Accounts page: reorder mode */
+  .acc-grid.reordering { grid-template-columns: 1fr; gap: 8px; position: relative; }
+  .reorder-card { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 2px; border-left: 4px solid var(--acc); position: relative; transition: transform .18s var(--dlg-ease), box-shadow .15s; }
+  .reorder-card .name { font-weight: 600; overflow-wrap: anywhere; }
+  .reorder-card .meta { font-size: 12.5px; color: var(--muted); }
+  .reorder-card.dragging { z-index: 5; transition: box-shadow .15s; box-shadow: 0 14px 34px rgba(0,0,0,.28); }
+  .drag-handle { flex: none; width: 44px; height: 44px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .drag-handle:hover, .reorder-card.dragging .drag-handle { background: var(--surface-2); color: var(--text); }
+  .reorder-card.dragging .drag-handle { cursor: grabbing; }
+  .reorder-card .icon-btn { font-size: 17px; }
+
   /* Account details */
   .acc-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
   .acc-head h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -775,7 +786,8 @@
 
   <!-- ACCOUNTS -->
   <section class="view" id="view-accounts" hidden>
-    <h2 class="section" style="margin-top:4px">Your accounts</h2>
+    <h2 class="section" style="margin-top:4px">Your accounts <button class="btn sm" id="accReorder">Reorder</button></h2>
+    <p class="tile-sub" id="accReorderHint" style="margin:-4px 2px 10px" hidden>Drag ≡ or use the arrows to arrange your accounts. This order is used everywhere in the app. Tap Done to save.</p>
     <div class="acc-grid" id="accGrid"></div>
 
     <h2 class="section">Categories</h2>
@@ -1159,6 +1171,8 @@
           s.categoryColors = s.categoryColors && typeof s.categoryColors === 'object' ? s.categoryColors : {};
           s.merchantCategories = s.merchantCategories && typeof s.merchantCategories === 'object' ? s.merchantCategories : {};
           s.accounts.forEach((a) => { if (!Array.isArray(a.cards)) a.cards = []; if (!a.currency) a.currency = 'SAR'; });
+          // Your chosen account order (older data without it keeps the order accounts were added in).
+          s.accounts = s.accounts.map((a, i) => ({ a, i })).sort((x, y) => (x.a.order ?? x.i) - (y.a.order ?? y.i) || x.i - y.i).map((x) => x.a);
           s.manualRates = s.manualRates && typeof s.manualRates === 'object' ? s.manualRates : {};
           s.budgets = Array.isArray(s.budgets) ? s.budgets : [];
           s.notifications = Array.isArray(s.notifications) ? s.notifications : [];
@@ -1177,6 +1191,8 @@
   }
 
   function save() {
+    // state.accounts is kept in display order (new and imported accounts go to the end); store it on each account.
+    state.accounts.forEach((a, i) => { a.order = i; });
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
     catch (e) {
       if (storageOk) toast('Could not save — your browser is blocking local storage.');
@@ -1471,6 +1487,7 @@
     tab: 'dashboard',
     chartAccount: 'all',
     range: 'month',
+    reorder: null, // account ids in draft order while reordering on the Accounts page
     accountId: null, // account shown on the Account details page
     accRange: 'month',
     accFilters: { q: '', category: 'all', type: 'all' },
@@ -1634,6 +1651,12 @@
   }
 
   function renderAccounts() {
+    $('#accReorder').hidden = state.accounts.length < 2 && !ui.reorder;
+    $('#accReorder').textContent = ui.reorder ? 'Done' : 'Reorder';
+    $('#accReorder').classList.toggle('primary', !!ui.reorder);
+    $('#accReorderHint').hidden = !ui.reorder;
+    $('#accGrid').classList.toggle('reordering', !!ui.reorder);
+    if (ui.reorder) { renderReorderList(); return; }
     const cards = state.accounts.map((a) => {
       const txs = state.transactions.filter((t) => touchesAccount(t, a.id));
       // In the account's own currency.
@@ -1670,6 +1693,119 @@
     }).join('');
     $('#accGrid').innerHTML = cards + `<button class="card add-card" data-action="add-account"><span><strong style="font-size:22px">+</strong><br>Add account</span></button>`;
   }
+
+  // ---------- Account order ----------
+  // Reorder mode edits a draft (ui.reorder = [account ids]); Done applies it to state.accounts, whose order every
+  // account list in the app follows. Leaving the Accounts page also saves it.
+  function renderReorderList() {
+    const ids = ui.reorder;
+    $('#accGrid').innerHTML = ids.map((id, i) => {
+      const a = accById(id);
+      if (!a) return '';
+      return `<div class="card reorder-card" data-reorder-id="${esc(a.id)}" style="--acc:${esc(a.color)}">
+        <button class="drag-handle" data-drag aria-label="Drag to move ${esc(a.name)}" title="Drag to move">≡</button>
+        <div class="grow"><div class="name">${esc(a.name)}</div><div class="meta num">${esc(fmtCur(nativeBalance(a), accCur(a)))}</div></div>
+        <button class="btn ghost icon-btn sm" data-move="-1" aria-label="Move ${esc(a.name)} up" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn ghost icon-btn sm" data-move="1" aria-label="Move ${esc(a.name)} down" ${i === ids.length - 1 ? 'disabled' : ''}>↓</button>
+      </div>`;
+    }).join('');
+  }
+
+  function startReorder() {
+    closeAccMenus();
+    ui.reorder = state.accounts.map((a) => a.id);
+    renderAccounts();
+  }
+  function finishReorder() {
+    if (!ui.reorder) return;
+    const pos = new Map(ui.reorder.map((id, i) => [id, i]));
+    const changed = state.accounts.some((a, i) => pos.get(a.id) !== i);
+    // Accounts added meanwhile (not in the draft) stay at the end.
+    state.accounts = state.accounts.slice().sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9));
+    ui.reorder = null;
+    commit(changed ? 'Account order saved' : '');
+  }
+
+  $('#accReorder').addEventListener('click', () => (ui.reorder ? finishReorder() : startReorder()));
+
+  // Arrow buttons
+  $('#accGrid').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-move]');
+    if (!b || !ui.reorder) return;
+    const id = b.closest('[data-reorder-id]').dataset.reorderId;
+    const i = ui.reorder.indexOf(id), j = i + Number(b.dataset.move);
+    if (j < 0 || j >= ui.reorder.length) return;
+    [ui.reorder[i], ui.reorder[j]] = [ui.reorder[j], ui.reorder[i]];
+    renderReorderList();
+    $(`#accGrid [data-reorder-id="${CSS.escape(id)}"] [data-move="${b.dataset.move}"]`)?.focus();
+  });
+
+  // Drag by the ≡ handle (mouse or touch). The card follows the finger; neighbours slide past it, and the page
+  // scrolls when dragging near the top or bottom of the screen.
+  (() => {
+    const grid = $('#accGrid');
+    let d = null;
+    const EDGE = 80, MAX_SPEED = 14;
+
+    const layoutTop = (el) => grid.getBoundingClientRect().top + window.scrollY + el.offsetTop; // ignores transforms
+    function place() {
+      const { el } = d;
+      const top = d.pageY - d.grab; // where the card should appear (page coordinates)
+      el.style.transform = `translateY(${top - layoutTop(el)}px)`;
+      const center = top + el.offsetHeight / 2 - window.scrollY; // viewport coordinates
+      const slide = (n, moveDown) => {
+        const before = n.getBoundingClientRect().top;
+        if (moveDown) grid.insertBefore(n, el); else grid.insertBefore(n, el.nextSibling);
+        const after = n.getBoundingClientRect().top;
+        n.style.transition = 'none';
+        n.style.transform = `translateY(${before - after}px)`;
+        requestAnimationFrame(() => { n.style.transition = ''; n.style.transform = ''; });
+        el.style.transform = `translateY(${top - layoutTop(el)}px)`;
+      };
+      let n;
+      while ((n = el.previousElementSibling) && center < n.getBoundingClientRect().top + n.offsetHeight / 2) slide(n, false);
+      while ((n = el.nextElementSibling) && center > n.getBoundingClientRect().top + n.offsetHeight / 2) slide(n, true);
+    }
+    function autoScroll() {
+      if (!d) return;
+      const y = d.pageY - window.scrollY;
+      const speed = y < EDGE ? -MAX_SPEED * (1 - y / EDGE) : y > innerHeight - EDGE ? MAX_SPEED * (1 - (innerHeight - y) / EDGE) : 0;
+      if (speed) {
+        const before = window.scrollY;
+        window.scrollBy(0, speed);
+        d.pageY += window.scrollY - before; // the finger stays put, so the page position under it moves
+        place();
+      }
+      d.raf = requestAnimationFrame(autoScroll);
+    }
+    grid.addEventListener('pointerdown', (e) => {
+      const h = e.target.closest('[data-drag]');
+      if (!h || !ui.reorder) return;
+      e.preventDefault();
+      const el = h.closest('[data-reorder-id]');
+      try { h.setPointerCapture(e.pointerId); } catch (err) { /* keep dragging without capture */ }
+      d = { el, id: e.pointerId, pageY: e.clientY + window.scrollY, grab: e.clientY + window.scrollY - layoutTop(el) };
+      el.classList.add('dragging');
+      d.raf = requestAnimationFrame(autoScroll);
+    });
+    grid.addEventListener('pointermove', (e) => {
+      if (!d || e.pointerId !== d.id) return;
+      d.pageY = e.clientY + window.scrollY;
+      place();
+    });
+    const end = (e) => {
+      if (!d || e.pointerId !== d.id) return;
+      cancelAnimationFrame(d.raf);
+      const { el } = d;
+      d = null;
+      el.classList.remove('dragging');
+      el.style.transform = '';
+      ui.reorder = $$('#accGrid [data-reorder-id]').map((c) => c.dataset.reorderId);
+      renderReorderList();
+    };
+    grid.addEventListener('pointerup', end);
+    grid.addEventListener('pointercancel', end);
+  })();
 
   function renderCategories() {
     const rows = state.categories.map((c) => {
@@ -2044,6 +2180,7 @@
 
   // ---------- Tabs ----------
   function setTab(tab) {
+    if (ui.reorder && tab !== 'accounts') finishReorder(); // leaving the Accounts page keeps the new order
     ui.tab = tab;
     $$('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     $$('.view').forEach((v) => { v.hidden = v.id !== 'view-' + tab; });
@@ -3914,6 +4051,7 @@
       if (openDialog) openDialog.close();
       else if (!$('#notifPanel').hidden) toggleNotifPanel(false);
       else if ($$('.acc-menu').some((m) => !m.hidden)) closeAccMenus();
+      else if (ui.reorder) finishReorder();
       else if (ui.tab === 'account') closeAccountDetails();
       else if (ui.tab !== 'dashboard') setTab('dashboard');
       else NativeApp.exitApp();
