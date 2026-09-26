@@ -1,4 +1,4 @@
-package com.moneytracker.app;
+package com.myname.expensetracker;
 
 import com.getcapacitor.BridgeActivity;
 

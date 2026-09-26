@@ -1,6 +1,6 @@
 {
-  "appId": "com.moneytracker.app",
-  "appName": "MoneyTracker",
+  "appId": "com.myname.expensetracker",
+  "appName": "Expense Tracker",
   "webDir": "www",
   "plugins": {
     "SystemBars": {
