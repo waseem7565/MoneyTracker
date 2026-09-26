@@ -7,7 +7,9 @@
     "build:web": "node scripts/build-web.mjs",
     "sync": "npm run build:web && cap sync android",
     "android:debug": "npm run sync && cd android && ./gradlew assembleDebug",
-    "android:open": "npm run sync && cap open android"
+    "android:open": "npm run sync && cap open android",
+    "test": "node --test tests/*.test.mjs",
+    "check:monefy": "node scripts/check-monefy.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

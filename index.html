@@ -10,6 +10,7 @@
   try { var t = localStorage.getItem('moneytracker.theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="monefy-import.js"></script>
 <style>
   :root {
     color-scheme: light;
@@ -222,6 +223,7 @@
   .tx .meta { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tx .amt { font-weight: 600; white-space: nowrap; }
   .amt.income { color: var(--pos); }
+  .amt.transfer { color: var(--text-2); }
   .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
   .empty { padding: 32px 16px; text-align: center; color: var(--muted); }
 
@@ -398,7 +400,7 @@
   @keyframes dlg-err-in { from { opacity: 0; transform: translateY(-3px); } }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .amount-input { font-size: 24px !important; height: 56px !important; font-weight: 600; }
-  .type-toggle { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 12px; padding: 4px; }
+  .type-toggle { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 12px; padding: 4px; }
   .type-toggle label { text-align: center; padding: 10px 8px; border-radius: 9px; cursor: pointer; color: var(--text-2); font-weight: 500; transition: background-color .15s; }
   .type-toggle input { position: absolute; opacity: 0; pointer-events: none; }
   .type-toggle input:checked + span { color: var(--text); font-weight: 600; }
@@ -486,6 +488,38 @@
   .intro-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--text-2); font-size: 14.5px; }
   .intro-list strong { color: var(--text); }
   #appsList { max-height: min(50vh, 380px); }
+
+  /* Monefy import */
+  #importDialog { width: min(680px, calc(100vw - 32px)); }
+  .imp-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  .imp-stat { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+  .imp-stat .v { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+  .imp-stat .l { font-size: 12.5px; color: var(--text-2); }
+  .imp-sec { display: grid; gap: 8px; }
+  .imp-sec > h4 { margin: 4px 0 0; font-size: 15px; }
+  .imp-sec > p { margin: 0; font-size: 13px; color: var(--text-2); }
+  .imp-list { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .imp-row { display: grid; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
+  .imp-row:first-child { border-top: 0; }
+  .imp-row .head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .imp-row .name { font-weight: 600; overflow-wrap: anywhere; }
+  .imp-row .meta { font-size: 12.5px; color: var(--muted); }
+  .imp-row .ctrl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 480px) { .imp-row .ctrl { grid-template-columns: 1fr; } }
+  #importDialog .imp-row :is(select, input[type=text], input[type=number]) { height: 42px; font-size: 15px; }
+  .imp-row.flag { border-left: 4px solid var(--warn); }
+  .imp-note { font-size: 12.5px; color: var(--text-2); }
+  .imp-note.warn { color: var(--neg); }
+  .imp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .imp-table th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  .imp-table td { padding: 7px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .imp-table .r { text-align: right; white-space: nowrap; }
+  .imp-table .ok { color: var(--pos); font-weight: 600; }
+  .imp-table .diff { color: var(--neg); font-weight: 600; }
+  .imp-file { display: grid; gap: 10px; justify-items: start; }
+  .imp-file input[type=file] { font-size: 14px; }
+  .radio-col { display: grid; gap: 6px; }
+  .radio-col label { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
 
   .toast {
     position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px); opacity: 0;
@@ -649,6 +683,7 @@
         <option value="all">All types</option>
         <option value="expense">Expenses</option>
         <option value="income">Income</option>
+        <option value="transfer">Transfers</option>
       </select>
       <div class="row2">
         <label class="inline">From <input type="date" id="fFrom"></label>
@@ -689,6 +724,18 @@
     <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
     <div class="card cat-list" id="catList"></div>
 
+    <h2 class="section" id="importSection">Import &amp; backup</h2>
+    <div class="card set-list">
+      <div class="set-row">
+        <div class="grow"><div class="t">Import from Monefy</div><div class="d">Bring in accounts, transactions and transfers from a Monefy CSV export.</div></div>
+        <button class="btn" id="importOpen">Import…</button>
+      </div>
+      <div class="set-row" id="backupRow" hidden>
+        <div class="grow"><div class="t">Backup</div><div class="d" id="backupDesc"></div></div>
+        <button class="btn" id="backupRestore">Restore</button>
+      </div>
+    </div>
+
     <h2 class="section" id="detect">Automatic purchase detection</h2>
     <p class="tile-sub" style="margin:-4px 2px 10px">Spot card purchases in your bank’s SMS or app notifications and add them in a tap. Everything stays on this phone.</p>
     <div class="card set-list" id="detectSettings"></div>
@@ -719,15 +766,17 @@
       <div class="type-toggle" role="radiogroup" aria-label="Transaction type">
         <label><input type="radio" name="type" value="expense" checked><span>Expense</span></label>
         <label><input type="radio" name="type" value="income"><span>Income</span></label>
+        <label><input type="radio" name="type" value="transfer"><span>Transfer</span></label>
       </div>
       <label class="field"><span>Amount (SAR)</span>
         <input class="amount-input num" type="number" name="amount" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
       </label>
       <div class="two">
         <label class="field"><span>Date</span><input type="date" name="date" required></label>
-        <label class="field"><span>Account</span><select name="accountId" required></select></label>
+        <label class="field"><span id="txAccLabel">Account</span><select name="accountId" required></select></label>
       </div>
-      <div class="field">
+      <label class="field" id="txToField" hidden><span>To account</span><select name="toAccountId"></select></label>
+      <div class="field" id="txCatField">
         <span>Category</span>
         <div class="cat-row">
           <select name="category" aria-label="Category"></select>
@@ -852,6 +901,13 @@
     <button type="button" class="btn" id="confirmNo">Cancel</button>
     <button type="button" class="btn primary" id="confirmYes">Confirm</button>
   </div>
+</dialog>
+
+<!-- Import from Monefy: pick a file → review and map → summary -->
+<dialog id="importDialog">
+  <div class="dlg-head"><h3 id="impTitle">Import from Monefy</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
+  <div class="dlg-body" id="impBody"></div>
+  <div class="dlg-foot" id="impFoot"></div>
 </dialog>
 
 <!-- Purchase detection: explanation shown before asking for permissions -->
@@ -1063,14 +1119,25 @@
   // ---------- Derived data ----------
   const accById = (id) => state.accounts.find((a) => a.id === id);
 
+  // A transaction is { id, type: 'expense' | 'income' | 'transfer', amount (> 0), date, accountId, category, description }.
+  // Transfers move money from accountId to toAccountId, have no category, and never count as spending or income.
+  const isTransfer = (t) => t.type === 'transfer';
+  const touchesAccount = (t, id) => t.accountId === id || (isTransfer(t) && t.toAccountId === id);
+
+  /** How much a transaction changes an account's balance (0 if it doesn't involve the account). */
+  function effectOn(t, accId) {
+    if (isTransfer(t)) return (t.toAccountId === accId ? t.amount : 0) - (t.accountId === accId ? t.amount : 0);
+    if (t.accountId !== accId) return 0;
+    return t.type === 'income' ? t.amount : -t.amount;
+  }
+
   function balanceOf(acc, uptoISO) {
     let b = Number(acc.startBalance) || 0;
     for (const t of state.transactions) {
-      if (t.accountId !== acc.id) continue;
       if (uptoISO && t.date > uptoISO) continue;
-      b += t.type === 'income' ? t.amount : -t.amount;
+      b += effectOn(t, acc.id);
     }
-    return b;
+    return round2(b);
   }
 
   // A color picked in Manage categories wins; otherwise the category gets its palette slot by position.
@@ -1265,12 +1332,12 @@
     const f = ui.filters;
     const q = f.q.trim().toLowerCase();
     const list = state.transactions.filter((t) =>
-      (f.account === 'all' || t.accountId === f.account) &&
+      (f.account === 'all' || touchesAccount(t, f.account)) &&
       (f.category === 'all' || t.category === f.category) &&
       (f.type === 'all' || t.type === f.type) &&
       (!f.from || t.date >= f.from) &&
       (!f.to || t.date <= f.to) &&
-      (!q || (t.description || '').toLowerCase().includes(q) || t.category.toLowerCase().includes(q))
+      (!q || (t.description || '').toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q))
     );
     const [key, dir] = f.sort.split('-');
     const m = dir === 'asc' ? 1 : -1;
@@ -1293,6 +1360,19 @@
     }
     $('#txList').innerHTML = list.map((t) => {
       const a = accById(t.accountId);
+      if (isTransfer(t)) {
+        const to = accById(t.toAccountId);
+        // Viewing one account: show whether money came in or went out. Otherwise it's neutral.
+        const sign = ui.filters.account === 'all' ? '⇄ ' : effectOn(t, ui.filters.account) > 0 ? '+' : '−';
+        return `<li><button class="tx" data-edit-tx="${esc(t.id)}">
+          <span class="swatch-dot" style="background:${esc(a ? a.color : '#999')}"></span>
+          <span class="grow">
+            <div class="desc">${esc(t.description || `${a ? a.name : 'Unknown'} → ${to ? to.name : 'Unknown'}`)}</div>
+            <div class="meta"><span class="chip">Transfer</span> ${esc(a ? a.name : 'Unknown')} → ${esc(to ? to.name : 'Unknown')} · ${dateFmt.format(parseISO(t.date))}</div>
+          </span>
+          <span class="amt num transfer">${sign}${fmt(t.amount)}</span>
+        </button></li>`;
+      }
       const sign = t.type === 'income' ? '+' : '−';
       return `<li><button class="tx" data-edit-tx="${esc(t.id)}">
         <span class="swatch-dot" style="background:${esc(a ? a.color : '#999')}"></span>
@@ -1307,9 +1387,10 @@
 
   function renderAccounts() {
     const cards = state.accounts.map((a) => {
-      const txs = state.transactions.filter((t) => t.accountId === a.id);
+      const txs = state.transactions.filter((t) => touchesAccount(t, a.id));
       const inc = txs.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
       const exp = txs.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const moved = txs.filter(isTransfer).reduce((s, t) => s + effectOn(t, a.id), 0);
       return `<div class="card acc-card" style="--acc:${esc(a.color)}">
         <div class="top">
           <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span>${(a.cards || []).map((c) => ` <span class="chip num" title="Linked card">•${esc(c)}</span>`).join('')}</div>
@@ -1319,6 +1400,7 @@
           <dt>Starting balance</dt><dd>${fmt(a.startBalance)}</dd>
           <dt>Income</dt><dd>+${fmt(inc)}</dd>
           <dt>Expenses</dt><dd>−${fmt(exp)}</dd>
+          ${txs.some(isTransfer) ? `<dt>Transfers (net)</dt><dd>${moved >= 0 ? '+' : '−'}${fmt(Math.abs(moved))}</dd>` : ''}
           <dt>Transactions</dt><dd>${txs.length}</dd>
         </dl>
         <div class="actions">
@@ -1636,8 +1718,8 @@
     const datasets = accounts.map((a) => {
       const delta = {};
       state.transactions.forEach((t) => {
-        if (t.accountId !== a.id || t.date < start || t.date > end) return;
-        delta[t.date] = (delta[t.date] || 0) + (t.type === 'income' ? t.amount : -t.amount);
+        if (t.date < start || t.date > end || !touchesAccount(t, a.id)) return;
+        delta[t.date] = (delta[t.date] || 0) + effectOn(t, a.id);
       });
       let bal = balanceOf(a, dayBefore);
       const data = days.map((d) => (bal += delta[d] || 0, round2(bal)));
@@ -1803,7 +1885,9 @@
     $('#txDetectNote').innerHTML = prefill ? prefill.note : '';
     clearFieldErrors(f);
     $('#txNewCatRow').hidden = true;
-    f.accountId.innerHTML = state.accounts.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+    const accOptions = state.accounts.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+    f.accountId.innerHTML = accOptions;
+    f.toAccountId.innerHTML = accOptions;
     f.category.innerHTML = state.categories.map((c) => `<option>${esc(c)}</option>`).join('');
     const defaultAcc = presetAccountId || (ui.filters.account !== 'all' ? ui.filters.account : state.accounts[0].id);
     const src = tx || prefill;
@@ -1811,9 +1895,11 @@
     f.amount.value = src ? src.amount : '';
     f.date.value = src ? src.date : todayISO();
     f.accountId.value = tx ? tx.accountId : (prefill && prefill.accountId) || defaultAcc;
-    if (tx && !state.categories.includes(tx.category)) f.category.insertAdjacentHTML('beforeend', `<option>${esc(tx.category)}</option>`);
-    f.category.value = src ? src.category : 'Food';
+    f.toAccountId.value = tx && isTransfer(tx) ? tx.toAccountId : (state.accounts.find((a) => a.id !== f.accountId.value) || state.accounts[0]).id;
+    if (tx && tx.category && !state.categories.includes(tx.category)) f.category.insertAdjacentHTML('beforeend', `<option>${esc(tx.category)}</option>`);
+    f.category.value = src && src.category ? src.category : state.categories.includes('Food') ? 'Food' : state.categories[0];
     f.description.value = src ? src.description : '';
+    syncTxTypeUI();
     $('#txDialog').showModal();
     if (!tx && !prefill) setTimeout(() => f.amount.focus(), 30);
   }
@@ -1824,13 +1910,17 @@
     const amount = round2(parseFloat(f.amount.value));
     if (!(amount > 0)) { showFieldError(f.amount, 'Enter an amount greater than zero.'); return; }
     if (!f.date.value) { showFieldError(f.date, 'Pick a date.'); return; }
+    const type = f.querySelector('input[name=type]:checked').value;
+    if (type === 'transfer' && f.toAccountId.value === f.accountId.value) { showFieldError(f.toAccountId, 'Choose a different account to transfer to.'); return; }
     const data = {
-      type: f.querySelector('input[name=type]:checked').value,
-      amount, date: f.date.value, accountId: f.accountId.value,
-      category: f.category.value || 'Other', description: f.description.value.trim()
+      type, amount, date: f.date.value, accountId: f.accountId.value,
+      category: type === 'transfer' ? '' : f.category.value || 'Other', description: f.description.value.trim()
     };
-    if (editingTx) Object.assign(editingTx, data);
-    else state.transactions.push({ id: uid(), ...data });
+    if (type === 'transfer') data.toAccountId = f.toAccountId.value;
+    if (editingTx) {
+      Object.assign(editingTx, data);
+      if (type !== 'transfer') delete editingTx.toAccountId;
+    } else state.transactions.push({ id: uid(), ...data });
     const purchase = editingPurchase;
     if (purchase) {
       if (purchase.merchant) state.merchantCategories[merchantKey(purchase.merchant)] = data.category; // suggest it next time
@@ -1839,6 +1929,14 @@
     $('#txDialog').close();
     commit(editingTx ? 'Transaction updated' : purchase ? 'Purchase added' : 'Transaction added');
   });
+
+  function syncTxTypeUI() {
+    const transfer = $('#txForm').querySelector('input[name=type]:checked').value === 'transfer';
+    $('#txToField').hidden = !transfer;
+    $('#txCatField').hidden = transfer;
+    $('#txAccLabel').textContent = transfer ? 'From account' : 'Account';
+  }
+  $('#txForm').addEventListener('change', (e) => { if (e.target.name === 'type') syncTxTypeUI(); });
 
   $('#txDismiss').addEventListener('click', () => {
     if (!editingPurchase) return;
@@ -1850,7 +1948,7 @@
   $('#txDelete').addEventListener('click', async () => {
     if (!editingTx) return;
     $('#txDialog').close();
-    if (await confirmAsk('Delete transaction?', `“${editingTx.description || editingTx.category}” (${fmt(editingTx.amount)}) will be removed.`, 'Delete')) {
+    if (await confirmAsk('Delete transaction?', `“${editingTx.description || editingTx.category || 'Transfer'}” (${fmt(editingTx.amount)}) will be removed.`, 'Delete')) {
       state.transactions = state.transactions.filter((t) => t !== editingTx);
       commit('Transaction deleted');
     } else $('#txDialog').showModal();
@@ -1920,7 +2018,7 @@
   });
   $('#accDelete').addEventListener('click', async () => {
     if (!editingAcc) return;
-    const n = state.transactions.filter((t) => t.accountId === editingAcc.id).length;
+    const n = state.transactions.filter((t) => touchesAccount(t, editingAcc.id)).length;
     $('#accDialog').close();
     const nb = state.budgets.filter((b) => b.accounts !== 'all' && b.accounts.includes(editingAcc.id)).length;
     const ok = await confirmAsk('Delete account?', `“${editingAcc.name}” and its ${n} transaction${n === 1 ? '' : 's'} will be permanently removed.` +
@@ -1928,7 +2026,7 @@
     if (ok) {
       const id = editingAcc.id;
       state.accounts = state.accounts.filter((a) => a.id !== id);
-      state.transactions = state.transactions.filter((t) => t.accountId !== id);
+      state.transactions = state.transactions.filter((t) => !touchesAccount(t, id));
       state.budgets.forEach((b) => { if (b.accounts !== 'all') b.accounts = b.accounts.filter((x) => x !== id); });
       commit('Account deleted');
     } else $('#accDialog').showModal();
@@ -1941,6 +2039,13 @@
     const rows = [['Date', 'Account', 'Account Type', 'Type', 'Category', 'Description', 'Amount (SAR)', 'Signed Amount (SAR)']];
     state.transactions.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((t) => {
       const a = accById(t.accountId) || {};
+      if (isTransfer(t)) {
+        // One row per side, so each account's signed amounts still add up to its balance.
+        const to = accById(t.toAccountId) || {};
+        rows.push([t.date, a.name || '', ACC_TYPES[a.type] || '', 'Transfer out', '', t.description || `To ${to.name || ''}`, t.amount.toFixed(2), (-t.amount).toFixed(2)]);
+        rows.push([t.date, to.name || '', ACC_TYPES[to.type] || '', 'Transfer in', '', t.description || `From ${a.name || ''}`, t.amount.toFixed(2), t.amount.toFixed(2)]);
+        return;
+      }
       rows.push([t.date, a.name || '', ACC_TYPES[a.type] || '', t.type === 'income' ? 'Income' : 'Expense', t.category, t.description, t.amount.toFixed(2), (t.type === 'income' ? t.amount : -t.amount).toFixed(2)]);
     });
     rows.push([]);
@@ -2333,9 +2438,14 @@
   $('#clearSampleBtn').addEventListener('click', async () => {
     const ok = await confirmAsk('Clear sample data?', 'This removes the sample accounts, transactions and budgets, including anything you added to those sample accounts. Accounts and budgets you created yourself are kept.', 'Clear sample data');
     if (!ok) return;
+    clearSampleData();
+    commit('Sample data cleared');
+  });
+
+  function clearSampleData() {
     const sampleAccIds = new Set(state.accounts.filter((a) => a.sample).map((a) => a.id));
     state.accounts = state.accounts.filter((a) => !a.sample);
-    state.transactions = state.transactions.filter((t) => !t.sample && !sampleAccIds.has(t.accountId));
+    state.transactions = state.transactions.filter((t) => !t.sample && !sampleAccIds.has(t.accountId) && !sampleAccIds.has(t.toAccountId));
     state.budgets = state.budgets.filter((b) => !b.sample);
     state.budgets.forEach((b) => { if (b.accounts !== 'all') b.accounts = b.accounts.filter((id) => !sampleAccIds.has(id)); });
     state.notifications = state.notifications.filter((n) => budgetById(n.budgetId));
@@ -2343,8 +2453,7 @@
     if (!state.transactions.some((t) => t.category === 'Salary') && !state.budgets.some((b) => b.category === 'Salary') && state.categories.includes('Salary')) removeCategory('Salary', 'Other');
     ui.chartAccount = 'all';
     ui.filters.account = 'all';
-    commit('Sample data cleared');
-  });
+  }
 
   $('#loadSampleBtn').addEventListener('click', () => {
     const s = makeSample();
@@ -2353,6 +2462,329 @@
     state.budgets.push(...s.budgets.filter((b) => !budgetById(b.id)));
     s.categories.forEach((c) => { if (!state.categories.includes(c)) addCategory(c); });
     commit('Sample data loaded');
+  });
+
+  // ---------- Import from Monefy ----------
+  // Parsing, transfer pairing, duplicate detection and the import itself are in monefy-import.js (tested in Node).
+  // This is the screen: pick a file → review and map → back up and import → summary with a balance check.
+  const MI = window.MonefyImport;
+  const BACKUP_KEY = 'moneytracker.backup';
+  const imp = { step: 'pick', plan: null, choices: null, fileName: '', clearSample: false, summary: null, error: '' };
+
+  function readBackup() {
+    try { return JSON.parse(localStorage.getItem(BACKUP_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function writeBackup(reason, stateJson) {
+    try { localStorage.setItem(BACKUP_KEY, `{"savedAt":${Date.now()},"reason":${JSON.stringify(reason)},"state":${stateJson}}`); return true; } catch (e) { return false; }
+  }
+  const whenSaved = (ts) => `${dateFmt.format(new Date(ts))}, ${new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  function renderBackupRow() {
+    const b = readBackup();
+    $('#backupRow').hidden = !b;
+    if (b) $('#backupDesc').textContent = `Saved ${whenSaved(b.savedAt)} (${b.reason.toLowerCase()}). Restoring replaces all current data with this copy.`;
+  }
+  async function restoreBackup() {
+    const b = readBackup();
+    if (!b || !b.state) { toast('No backup found.'); return; }
+    if ($('#importDialog').open) $('#importDialog').close();
+    const ok = await confirmAsk('Restore backup?',
+      `Your accounts, transactions, budgets and categories will be replaced with the copy saved ${whenSaved(b.savedAt)}. Anything added since then will be lost.`, 'Restore');
+    if (!ok) return;
+    state = b.state;
+    ui.chartAccount = 'all';
+    ui.filters.account = 'all';
+    commit('Backup restored');
+  }
+
+  function openImport() {
+    if (!MI) { toast('The importer didn’t load. Try restarting the app.'); return; }
+    Object.assign(imp, { step: 'pick', plan: null, choices: null, fileName: '', summary: null, error: '' });
+    renderImport();
+    $('#importDialog').showModal();
+  }
+
+  async function loadImportFile(file) {
+    let text;
+    try { text = await file.text(); } catch (e) { imp.error = 'Couldn’t read that file.'; renderImport(); return; }
+    const parsed = MI.parseMonefy(text);
+    if (!parsed.rows.length) { imp.error = parsed.errors.length ? parsed.errors[0].reason : 'No transactions found in that file.'; renderImport(); return; }
+    imp.plan = MI.buildPlan(parsed);
+    imp.choices = MI.defaultChoices(imp.plan, { accounts: state.accounts, categories: state.categories });
+    imp.fileName = file.name;
+    imp.clearSample = hasSample();
+    imp.step = 'review';
+    imp.error = '';
+    renderImport();
+    $('#impBody').scrollTop = 0;
+  }
+
+  const plural = (n, word, many = word + 's') => `${n.toLocaleString('en')} ${n === 1 ? word : many}`;
+  const rowWhen = (r) => dateFmt.format(parseISO(r.date));
+
+  function renderImport() {
+    const body = $('#impBody'), foot = $('#impFoot');
+    if (imp.step === 'pick') {
+      $('#impTitle').textContent = 'Import from Monefy';
+      body.innerHTML = `
+        <div class="imp-file">
+          <p class="imp-note" style="margin:0;font-size:14px">Export your data from Monefy as a CSV file, then choose it here. You’ll review everything before anything is imported, and your current data is backed up first.</p>
+          <input type="file" id="impFile" accept=".csv,text/csv,text/comma-separated-values" aria-label="Monefy CSV file">
+          ${imp.error ? `<span class="field-err" role="alert">${esc(imp.error)}</span>` : ''}
+        </div>`;
+      foot.innerHTML = '<button type="button" class="btn" data-close>Cancel</button>';
+      return;
+    }
+    if (imp.step === 'review') { renderImportReview(body, foot); return; }
+    renderImportSummary(body, foot);
+  }
+
+  // Monefy accounts plus unmatched-transfer targets that will become accounts.
+  const importAccountNames = () => imp.plan.accounts.concat(imp.plan.unmatched.filter((u) => !u.inFile && imp.choices.unmatched[u.name].mode === 'account').map((u) => u.name));
+
+  function renderImportReview(body, foot) {
+    const p = imp.plan, c = imp.choices;
+    $('#impTitle').textContent = 'Review import';
+    const unmatchedRows = p.unmatched.reduce((s, u) => s + u.rows.length, 0);
+    const stat = (v, l) => `<div class="imp-stat"><div class="v num">${v}</div><div class="l">${l}</div></div>`;
+    const accOptions = (sel) => `<option value="new" ${sel === 'new' ? 'selected' : ''}>Create new account</option>` +
+      state.accounts.map((a) => `<option value="${esc(a.id)}" ${sel === a.id ? 'selected' : ''}>Add to “${esc(a.name)}”</option>`).join('');
+    const catOptions = (sel) => state.categories.map((x) => `<option ${x === sel ? 'selected' : ''}>${esc(x)}</option>`).join('');
+
+    let html = `<p class="imp-note" style="margin:0">${esc(imp.fileName)}</p>
+      <div class="imp-stats">
+        ${stat(p.regular.length.toLocaleString('en'), 'transactions')}
+        ${stat(p.transfers.length, 'transfers')}
+        ${stat(p.accounts.length, 'accounts')}
+        ${stat(p.categories.length, 'categories')}
+        ${stat(p.dateRange ? `${shortDateFmt.format(parseISO(p.dateRange.from))} – ${shortDateFmt.format(parseISO(p.dateRange.to))}` : '—', p.dateRange ? `${parseISO(p.dateRange.from).getFullYear()}${p.dateRange.from.slice(0, 4) !== p.dateRange.to.slice(0, 4) ? '–' + p.dateRange.to.slice(0, 4) : ''}` : 'dates')}
+        ${stat(p.flagged.length, p.flagged.length === 1 ? 'flagged row' : 'flagged rows')}
+      </div>
+      <p class="imp-note" style="margin:0">Also: ${plural(p.initial.length, 'starting balance')}, ${plural(unmatchedRows, 'unmatched transfer row')}${p.errors.length ? `, <span class="warn">${plural(p.errors.length, 'unreadable row')}</span>` : ''}. Transfers never count as spending or income.</p>`;
+
+    if (hasSample()) {
+      html += `<label class="detect-note" style="display:flex;gap:10px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="impClearSample" ${imp.clearSample ? 'checked' : ''}> <span>Remove the sample data first, so totals and balances only show your real data.</span></label>`;
+    }
+
+    if (p.flagged.length) {
+      html += `<div class="imp-sec"><h4>Check these amounts</h4>
+        <p>The original currency isn’t SAR but Monefy’s converted amount is the same number, so it probably wasn’t converted. Enter the correct SAR amount, or leave it empty to skip the row.</p>
+        <div class="imp-list">${p.flagged.map((r) => `
+          <div class="imp-row flag">
+            <div class="head"><span class="name">${esc(r.account)} · ${esc(r.category)}</span><span class="meta">Line ${r.line} · ${rowWhen(r)}</span></div>
+            <div class="imp-note">${esc(r.amount.toLocaleString('en'))} ${esc(r.currency)} was recorded as ${esc(r.converted.toLocaleString('en'))} SAR${r.description ? ` · “${esc(r.description)}”` : ''}</div>
+            <input type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount in SAR" data-fix-line="${r.line}" value="${esc(c.corrections[r.line] ?? '')}" aria-label="Correct SAR amount for line ${r.line}">
+          </div>`).join('')}</div></div>`;
+    }
+
+    html += `<div class="imp-sec"><h4>Accounts</h4><p>Each Monefy account becomes an account here. Keep the Monefy name, rename it, or add its transactions to an account you already have.</p>
+      <div class="imp-list">${importAccountNames().map((n) => {
+        const ch = c.accounts[n];
+        const init = p.initial.find((r) => r.other === n);
+        const existing = ch.target !== 'new' ? accById(ch.target) : null;
+        const meta = n in p.monefyBalances ? `Monefy balance ${fmt(p.monefyBalances[n])}` : 'Not in this file (from an unmatched transfer)';
+        return `<div class="imp-row">
+          <div class="head"><span class="name">${esc(n)}</span><span class="meta num">${meta}</span></div>
+          <div class="ctrl">
+            <select data-acc-map="${esc(n)}" aria-label="Where to put ${esc(n)}">${accOptions(ch.target)}</select>
+            ${ch.target === 'new' ? `<input type="text" maxlength="40" data-acc-name="${esc(n)}" value="${esc(ch.name ?? n)}" aria-label="New account name">` : '<span></span>'}
+          </div>
+          ${init ? `<div class="imp-note">Starting balance ${fmt(init.converted)}${existing ? ` (replaces ${fmt(existing.startBalance)})` : ''}</div>` : ''}
+        </div>`;
+      }).join('')}</div></div>`;
+
+    if (p.unmatched.length) {
+      html += `<div class="imp-sec"><h4>Unmatched transfers</h4><p>These transfers point to an account with no matching row in the file. Choose how to import each group.</p>
+        <div class="imp-list">${p.unmatched.map((u) => {
+          const ch = c.unmatched[u.name];
+          const rows = u.rows.map((r) => `${rowWhen(r)}: ${r.kind === 'out' ? `${esc(r.account)} → ${esc(u.name)}` : `${esc(u.name)} → ${esc(r.account)}`} ${fmt(Math.abs(r.converted))}`).join('<br>');
+          return `<div class="imp-row">
+            <div class="head"><span class="name">${esc(u.name)}</span><span class="meta">${plural(u.rows.length, 'row')}</span></div>
+            <div class="imp-note num">${rows}</div>
+            <div class="radio-col">
+              <label><input type="radio" name="unm-${esc(u.name)}" data-unm="${esc(u.name)}" value="account" ${ch.mode === 'account' ? 'checked' : ''}>${u.inFile ? `Import as transfers with “${esc(u.name)}”` : `Create account “${esc(u.name)}” and import as transfers`}</label>
+              <label><input type="radio" name="unm-${esc(u.name)}" data-unm="${esc(u.name)}" value="regular" ${ch.mode === 'regular' ? 'checked' : ''}>Import as regular expense / income</label>
+            </div>
+            ${ch.mode === 'regular' ? `<select data-unm-cat="${esc(u.name)}" aria-label="Category for ${esc(u.name)}">${catOptions(ch.category)}</select>` : ''}
+            ${u.inFile && ch.mode === 'account' ? '<div class="imp-note warn">That account is in the file, so this will change its balance compared with Monefy.</div>' : ''}
+          </div>`;
+        }).join('')}</div></div>`;
+    }
+
+    html += `<div class="imp-sec"><h4>Categories</h4><p>Matched to your categories ignoring case. Similar names are suggested for merging.</p>
+      <div class="imp-list">${p.categories.map((cat) => {
+        const ch = c.categories[cat.name];
+        const value = ch.action === 'merge' ? `merge:${ch.into}` : ch.action === 'existing' ? `existing:${ch.name}` : 'new';
+        const mergeTargets = p.categories.filter((o) => o.name !== cat.name && c.categories[o.name].action !== 'merge');
+        const opts = `<option value="new" ${value === 'new' ? 'selected' : ''}>Create “${esc(cat.name)}”</option>` +
+          state.categories.map((x) => `<option value="existing:${esc(x)}" ${value === `existing:${x}` ? 'selected' : ''}>Use “${esc(x)}”</option>`).join('') +
+          mergeTargets.filter((o) => !state.categories.some((x) => x.toLowerCase() === o.name.toLowerCase()))
+            .map((o) => `<option value="merge:${esc(o.name)}" ${value === `merge:${o.name}` ? 'selected' : ''}>Merge into “${esc(o.name)}”</option>`).join('');
+        return `<div class="imp-row">
+          <div class="head"><span class="name">${esc(cat.name)}</span><span class="meta">${plural(cat.count, 'transaction')}</span></div>
+          <select data-cat-map="${esc(cat.name)}" aria-label="Category for ${esc(cat.name)}">${opts}</select>
+          ${ch.suggested ? `<div class="imp-note">Suggested because it’s similar to “${esc(ch.action === 'merge' ? ch.into : ch.name)}”.</div>` : ''}
+        </div>`;
+      }).join('')}</div></div>`;
+
+    if (p.errors.length) {
+      html += `<div class="imp-sec"><h4>Rows that can’t be read</h4><div class="imp-list">${p.errors.map((e) => `<div class="imp-row"><div class="imp-note warn">Line ${e.line}: ${esc(e.reason)}</div></div>`).join('')}</div></div>`;
+    }
+    body.innerHTML = html;
+    foot.innerHTML = `<button type="button" class="btn left" id="impBack">Back</button>
+      <button type="button" class="btn primary" id="impRun">Import</button>`;
+  }
+
+  function importedAccountId(name) {
+    if (imp.summary && imp.summary.accountIds[name]) return imp.summary.accountIds[name];
+    const ch = imp.choices.accounts[name];
+    if (ch && ch.target !== 'new' && accById(ch.target)) return ch.target;
+    const wanted = ((ch && ch.name) || name).toLowerCase();
+    const hit = state.accounts.find((a) => a.name.toLowerCase() === wanted);
+    return hit ? hit.id : null;
+  }
+
+  function renderImportSummary(body, foot) {
+    const s = imp.summary, p = imp.plan;
+    $('#impTitle').textContent = 'Import finished';
+    const n = s.imported;
+    const skippedByReason = {};
+    s.skipped.forEach((x) => { skippedByReason[x.reason] = (skippedByReason[x.reason] || 0) + 1; });
+
+    // Balance check: what Monefy shows vs what this app now shows, per Monefy account.
+    const names = importAccountNames();
+    const sharedIds = {};
+    names.forEach((nm) => { const id = importedAccountId(nm); if (id) sharedIds[id] = (sharedIds[id] || 0) + 1; });
+    let mismatches = 0;
+    const rows = names.map((nm) => {
+      const id = importedAccountId(nm);
+      const acc = id && accById(id);
+      if (!acc) return `<tr><td>${esc(nm)}</td><td class="r num">${nm in p.monefyBalances ? fmt(p.monefyBalances[nm]) : '—'}</td><td class="r">—</td><td>Not imported</td></tr>`;
+      const app = balanceOf(acc);
+      const inFile = nm in p.monefyBalances;
+      const monefy = inFile ? p.monefyBalances[nm] : null;
+      const ok = inFile && Math.abs(app - monefy) < 0.005;
+      const notes = [];
+      if (inFile && !ok) {
+        mismatches++;
+        p.flagged.filter((r) => r.account === nm).forEach((r) => {
+          const fixed = imp.choices.corrections[r.line];
+          notes.push(fixed ? `Line ${r.line}: Monefy counted ${fmt(r.converted)}, you entered ${fmt(Number(fixed))}.` : `Line ${r.line} was skipped (no SAR amount).`);
+        });
+        if (sharedIds[id] > 1) notes.push('Several Monefy accounts were added to this account.');
+        if (state.transactions.some((t) => touchesAccount(t, id) && t.source !== 'monefy')) notes.push('This account also has transactions that weren’t imported.');
+        if (p.unmatched.some((u) => u.inFile && u.name === nm && imp.choices.unmatched[u.name].mode === 'account')) notes.push('Includes unmatched transfers imported as transfers.');
+      }
+      return `<tr>
+        <td>${esc(nm)}${acc.name !== nm ? `<div class="imp-note">→ ${esc(acc.name)}</div>` : ''}${notes.map((x) => `<div class="imp-note">${esc(x)}</div>`).join('')}</td>
+        <td class="r num">${inFile ? fmt(monefy) : '—'}</td>
+        <td class="r num">${fmt(app)}</td>
+        <td class="${!inFile ? '' : ok ? 'ok' : 'diff'}">${!inFile ? 'New' : ok ? '✓' : `${app - monefy > 0 ? '+' : '−'}${fmt(Math.abs(app - monefy))}`}</td>
+      </tr>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div class="imp-stats">
+        <div class="imp-stat"><div class="v num">${n.transactions.toLocaleString('en')}</div><div class="l">transactions imported</div></div>
+        <div class="imp-stat"><div class="v num">${n.transfers}</div><div class="l">transfers imported</div></div>
+        <div class="imp-stat"><div class="v num">${n.startBalances}</div><div class="l">starting balances set</div></div>
+        <div class="imp-stat"><div class="v num">${n.accounts}</div><div class="l">accounts created</div></div>
+        <div class="imp-stat"><div class="v num">${n.categories}</div><div class="l">categories created</div></div>
+        <div class="imp-stat"><div class="v num">${s.skipped.length + s.failed.length}</div><div class="l">rows skipped or failed</div></div>
+      </div>
+      ${s.skipped.length ? `<div class="imp-sec"><h4>Skipped</h4>${Object.entries(skippedByReason).map(([r, k]) => `<p>${esc(r)}: ${plural(k, 'row')}</p>`).join('')}</div>` : ''}
+      ${s.failed.length ? `<div class="imp-sec"><h4>Not imported</h4><div class="imp-list">${s.failed.map((f) => `<div class="imp-row"><div class="imp-note warn">Line ${f.line}: ${esc(f.reason)}</div></div>`).join('')}</div></div>` : ''}
+      <div class="imp-sec"><h4>Balance check</h4>
+        <p>${mismatches ? `${plural(mismatches, 'account')} ${mismatches === 1 ? 'differs' : 'differ'} from Monefy. The notes explain why.` : 'Every account matches the balance Monefy shows.'} Compare these with Monefy’s account list.</p>
+        <div style="overflow-x:auto"><table class="imp-table"><thead><tr><th>Account</th><th class="r">Monefy</th><th class="r">This app</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      </div>
+      <p class="imp-note" style="margin:0">${s.backedUp ? 'A backup of your data from before the import was saved. You can restore it here or later under Accounts → Import &amp; backup.' : 'Nothing changed, so your existing backup was kept.'}</p>`;
+    foot.innerHTML = `${readBackup() ? '<button type="button" class="btn left" id="impRestore">Restore backup</button>' : ''}
+      <button type="button" class="btn primary" data-close>Done</button>`;
+  }
+
+  async function runImport() {
+    const p = imp.plan, c = imp.choices;
+    for (const n of importAccountNames()) {
+      if (c.accounts[n].target === 'new' && !String(c.accounts[n].name ?? n).trim()) { toast(`Give the account for “${n}” a name.`); return; }
+    }
+    const missing = p.flagged.filter((r) => !(Number(c.corrections[r.line]) > 0));
+    if (missing.length) {
+      const ok = await confirmAsk('Skip flagged rows?', `${plural(missing.length, 'flagged row')} ${missing.length === 1 ? 'has' : 'have'} no SAR amount and won’t be imported. Continue?`, 'Import without them', false);
+      if (!ok) return;
+    }
+    const snapshot = JSON.stringify(state);
+    const clearing = imp.clearSample && hasSample();
+    try {
+      if (clearing) clearSampleData();
+      imp.summary = MI.applyImport(state, p, c, {
+        uid,
+        color: (i) => ACCOUNT_SWATCHES[i % ACCOUNT_SWATCHES.length],
+        accountType: (name) => (/saving|emergency|invest/i.test(name) ? 'savings' : /cash|wallet/i.test(name) ? 'cash' : 'checking')
+      });
+    } catch (e) {
+      state = JSON.parse(snapshot);
+      console.error('Monefy import failed', e);
+      toast('The import failed, so nothing was changed.');
+      return;
+    }
+    // Back up the data from before the import. When nothing changed (e.g. the same file again), keep the older backup.
+    const changed = clearing || Object.values(imp.summary.imported).some((v) => v > 0);
+    if (changed && !writeBackup('Before Monefy import', snapshot)) {
+      state = JSON.parse(snapshot);
+      toast('Couldn’t save a backup (storage is full), so nothing was imported.');
+      return;
+    }
+    imp.summary.backedUp = changed;
+    imp.step = 'done';
+    ui.chartAccount = 'all';
+    ui.filters.account = 'all';
+    syncFilterInputs();
+    commit(); // budgets, charts, totals and the transaction list all recalculate here
+    renderImport();
+    renderBackupRow();
+    $('#impBody').scrollTop = 0;
+  }
+
+  $('#importOpen').addEventListener('click', openImport);
+  $('#backupRestore').addEventListener('click', restoreBackup);
+  $('#importDialog').addEventListener('change', (e) => {
+    const t = e.target, c = imp.choices;
+    if (t.id === 'impFile') { if (t.files && t.files[0]) loadImportFile(t.files[0]); return; }
+    if (!c) return;
+    if (t.id === 'impClearSample') { imp.clearSample = t.checked; return; }
+    if (t.dataset.fixLine) { c.corrections[t.dataset.fixLine] = t.value; return; }
+    if (t.dataset.accName !== undefined) return;
+    if (t.dataset.accMap !== undefined) {
+      const n = t.dataset.accMap;
+      c.accounts[n] = t.value === 'new' ? { target: 'new', name: (c.accounts[n] && c.accounts[n].name) || n } : { target: t.value };
+    } else if (t.dataset.unm !== undefined) {
+      c.unmatched[t.dataset.unm].mode = t.value;
+    } else if (t.dataset.unmCat !== undefined) {
+      c.unmatched[t.dataset.unmCat].category = t.value;
+      return;
+    } else if (t.dataset.catMap !== undefined) {
+      const [action, ...rest] = t.value.split(':');
+      const name = rest.join(':');
+      c.categories[t.dataset.catMap] = action === 'new' ? { action: 'new', name: t.dataset.catMap } : action === 'merge' ? { action: 'merge', into: name } : { action: 'existing', name };
+      // Anything that was merged into this category now follows it.
+      if (action === 'merge') Object.values(c.categories).forEach((x) => { if (x.action === 'merge' && x.into === t.dataset.catMap) x.into = name; });
+    } else return;
+    const scroll = $('#impBody').scrollTop;
+    renderImport();
+    $('#impBody').scrollTop = scroll;
+  });
+  $('#importDialog').addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset.accName !== undefined && imp.choices) imp.choices.accounts[t.dataset.accName].name = t.value;
+    else if (t.dataset.fixLine && imp.choices) imp.choices.corrections[t.dataset.fixLine] = t.value;
+  });
+  $('#importDialog').addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.id === 'impBack') { imp.step = 'pick'; imp.error = ''; renderImport(); }
+    else if (t.id === 'impRun') runImport();
+    else if (t.id === 'impRestore') restoreBackup();
   });
 
   // ---------- Purchase detection (Android) ----------
@@ -2705,6 +3137,7 @@
   setInterval(checkMonthRollover, 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthRollover(); refreshNotifPerm(); refreshPending(); refreshDetect(); } });
 
+  renderBackupRow();
   refreshDetect();
   if (PD) {
     refreshPending();

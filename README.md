@@ -54,3 +54,12 @@ The app can detect card purchases in bank SMS, and optionally in bank-app notifi
 - Native code lives in `android/app/src/main/java/com/myname/expensetracker/purchases/`: `SmsReceiver` (works while the app is closed), `BankNotificationListener` (optional; needs "Notification access"), `PurchaseParser`, `PurchaseStore` (on-device storage and de-duplication) and `PurchaseDetectionPlugin` (the bridge to `index.html`).
 - Only messages from the senders and apps you choose are read. One-time passwords and verification codes are never processed. Messages never leave the phone, and only the extracted details (amount, currency, merchant, card's last 4 digits, date/time) are stored.
 - **Adding a bank:** parsing rules are in `android/app/src/main/assets/purchase_rules.json`. The generic rules handle most Arabic and English alerts. If your bank's format is parsed wrongly, add an entry to `banks` with its sender IDs and a regular expression that uses named groups (`amount`, `currency`, `merchant`, `card`, `date`, `time`), then add a sample message to `android/app/src/test/.../PurchaseParserTest.java` and run `./gradlew testDebugUnitTest` in `android/`. You can also try a message on the phone with **Test with a sample message** in settings.
+
+## Import from Monefy
+
+**Accounts → Import & backup → Import…** reads a Monefy CSV export. It shows a preview, lets you map accounts, categories and unmatched transfers, backs up your current data, then imports and compares each account's balance with Monefy's.
+
+- Parsing, transfer pairing and duplicate detection live in `monefy-import.js`, which doesn't touch the page, so it's tested in Node: `npm test`.
+- Columns are read by position (Monefy has two columns named "currency"), and the converted SAR amount is what gets imported. `Initial balance '…'` rows set starting balances. Matching `To '…'` / `From '…'` rows become one transfer, and transfers never count as spending or income.
+- Re-importing a file skips rows that were already imported. The backup (restore it under **Import & backup**) is only replaced by an import that changes something.
+- Keep real exports in `import-data/` (git-ignored). `npm run check:monefy` dry-runs `import-data/monefy.csv` and prints the balance check.

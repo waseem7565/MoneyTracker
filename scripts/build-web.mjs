@@ -18,4 +18,5 @@ mkdirSync(out, { recursive: true });
 writeFileSync(join(out, 'index.html'), html);
 copyFileSync(join(root, 'node_modules/chart.js/dist/chart.umd.js'), join(out, 'chart.umd.js'));
 copyFileSync(join(root, 'node_modules/@capacitor/core/dist/capacitor.js'), join(out, 'capacitor.js'));
-console.log('Built www/ (index.html, chart.umd.js, capacitor.js)');
+copyFileSync(join(root, 'monefy-import.js'), join(out, 'monefy-import.js'));
+console.log('Built www/ (index.html, chart.umd.js, capacitor.js, monefy-import.js)');
