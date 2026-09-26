@@ -764,6 +764,12 @@
   .tx .desc { font-weight: 600; }
   .tx .amt { font-weight: 700; }
   .tx:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+  /* Swipe-to-delete rows (Account details): the row always stays fully opaque, so the red layer behind it never shows
+     through; tapping tints it (still opaque) instead. The red layer only appears once a swipe has started. */
+  .ad-item .tx, .ad-item .tx:hover { background: var(--surface); -webkit-tap-highlight-color: transparent; }
+  .ad-item .tx:active { background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
+  .ad-item .swipe-del { visibility: hidden; }
+  .ad-item.swiping .swipe-del { visibility: visible; }
   .ad-day-head { background: none; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 12px 14px 4px; }
 
   /* Account details: In / Out / Net in one compact row. */
@@ -3052,7 +3058,8 @@
       if (!s.dir && Math.hypot(dx, dy) > 8) s.dir = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (s.dir !== 'x') return;
       s.dx = Math.max(-140, Math.min(0, dx));
-      s.item.classList.add('dragging');
+      clearTimeout(s.item._hideDelete);
+      s.item.classList.add('dragging', 'swiping'); // show the red layer only now that it's a swipe
       s.btn.style.transform = `translateX(${s.dx}px)`;
     });
     const end = () => {
@@ -3062,6 +3069,7 @@
       item.classList.remove('dragging');
       btn.style.transform = '';
       if (dir !== 'x') return;
+      item._hideDelete = setTimeout(() => item.classList.remove('swiping'), 220); // after the .2s slide back
       justSwiped = true;
       setTimeout(() => { justSwiped = false; }, 350);
       if (dx < -90) {
