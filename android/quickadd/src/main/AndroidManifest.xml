@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Needed to start Expense Tracker's quick-add screen on Android 11+. -->
+    <queries>
+        <package android:name="com.myname.expensetracker" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_quick_add"
+        android:roundIcon="@drawable/ic_quick_add"
+        android:label="@string/app_name">
+        <!-- No screen of its own: it hands off to com.myname.expensetracker/.QuickAddActivity and finishes. -->
+        <activity
+            android:name=".LaunchQuickAdd"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

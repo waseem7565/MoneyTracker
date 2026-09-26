@@ -1,0 +1,20 @@
+// "Add Transaction": a tiny companion app whose only job is to open Expense Tracker's quick-add screen.
+// It needs its own package because Samsung's side-button "Open app" list shows one entry per app.
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.myname.expensetracker.quickadd"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.myname.expensetracker.quickadd"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}

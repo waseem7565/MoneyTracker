@@ -21,14 +21,13 @@
             </intent-filter>
         </activity>
 
-        <!-- Second launcher entry, "Add Transaction": opens straight into the add pop-up (e.g. from Samsung's side-button
-             double press). Its own task, not in Recents, and allowed over the lock screen (it only shows the add form). -->
+        <!-- Quick add: opens straight into the add pop-up. Started by the companion "Add Transaction" app
+             (android/quickadd), which has its own package so Samsung's side-button "Open app" list can offer it.
+             Its own task, not in Recents, and allowed over the lock screen (it only shows the add form). -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".QuickAddActivity"
             android:label="@string/quick_add_label"
-            android:icon="@drawable/ic_quick_add"
-            android:roundIcon="@drawable/ic_quick_add"
             android:theme="@style/AppTheme.NoActionBar"
             android:taskAffinity="${applicationId}.quickadd"
             android:launchMode="singleTask"
@@ -36,12 +35,7 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
