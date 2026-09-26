@@ -797,6 +797,50 @@
   .cat-grid button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   #txDialog .dlg-foot .btn.primary { flex: 1 1 auto; }
 
+  /* ================= Pickers: the field in front of each <select>, and the bottom sheet it opens ================= */
+  .picker-source { display: none !important; }
+  .pick-field {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; height: 42px; padding: 0 10px 0 12px;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text);
+    font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  }
+  .pick-field .pick-value { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pick-field .pick-arrow { width: 18px; height: 18px; color: var(--muted); }
+  .pick-field .pick-dot { width: 9px; height: 9px; }
+  .pick-field .ci { width: 26px; height: 26px; }
+  .pick-field .ci .ico { width: 15px; height: 15px; }
+  .pick-field:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .pick-field[aria-invalid="true"] { border-color: var(--neg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--neg) 16%, transparent); }
+  .pick-field:disabled { opacity: .5; cursor: default; }
+  /* Inside pop-ups: the same size and look as the pop-ups' text fields. */
+  dialog .pick-field { height: 48px; padding: 0 12px 0 14px; border: 1.5px solid var(--border); background: var(--surface-2); font-size: 16px; }
+  dialog .pill-field .pick-field { height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 14.5px; font-weight: 700; }
+  #importDialog .imp-row .pick-field { height: 42px; font-size: 15px; }
+  .controls .pick-field { width: auto; min-width: 220px; max-width: 100%; }
+  @media (max-width: 560px) { .controls.stacked .pick-field { width: 100%; } }
+
+  @media (min-width: 601px) { #pickerDialog { width: min(440px, calc(100vw - 32px)); } } /* phones: a full-width bottom sheet, like the other pop-ups */
+  #pickerDialog .dlg-head { padding-bottom: 8px; }
+  .pick-search { flex: none; padding: 0 18px 8px; }
+  .pick-search input { width: 100%; height: 44px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface-2); padding: 0 14px; font-size: 16px; }
+  .pick-search input:focus { outline: none; border-color: var(--accent); }
+  #pickerDialog .pick-list { gap: 2px; padding: 4px 10px max(18px, env(safe-area-inset-bottom)); }
+  .pick-opt {
+    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 10px 12px;
+    border: 0; border-radius: 14px; background: none; color: var(--text); font: inherit; font-size: 15.5px; text-align: left; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: background-color .12s;
+  }
+  .pick-opt:hover, .pick-opt:active { background: color-mix(in srgb, var(--text) 7%, transparent); }
+  .pick-opt[aria-selected="true"] { color: var(--accent-text); font-weight: 700; background: color-mix(in srgb, var(--accent) 11%, transparent); }
+  .pick-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .pick-opt:disabled { opacity: .45; cursor: default; }
+  .pick-opt .pick-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .pick-opt .pick-right { flex: none; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+  .pick-opt .pick-check { width: 20px; height: 20px; stroke-width: 2.5; color: var(--accent-text); visibility: hidden; }
+  .pick-opt[aria-selected="true"] .pick-check { visibility: visible; }
+  .pick-opt .ci { width: 36px; height: 36px; }
+  .pick-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 8%, transparent); }
+  .pick-empty { margin: 0; padding: 24px 12px; text-align: center; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -831,6 +875,7 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-dots" viewBox="0 0 24 24"><path d="M12 5h.01M12 12h.01M12 19h.01"/></symbol>
   <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
@@ -932,7 +977,7 @@
 
       <div class="controls stacked">
         <h2>Insights</h2>
-        <select id="chartAccount" aria-label="Account for charts"></select>
+        <select id="chartAccount" aria-label="Account for charts" data-picker-title="Show insights for"></select>
         <div class="seg" id="rangeSeg" role="group" aria-label="Time range">
           <button data-range="month" aria-pressed="true">This month</button>
           <button data-range="3m" aria-pressed="false">Last 3 months</button>
@@ -971,9 +1016,9 @@
     <div class="card pending" data-pending-slot hidden></div>
     <div class="card filters">
       <input class="search" type="search" id="fSearch" placeholder="Search description…" aria-label="Search description">
-      <select id="fAccount" aria-label="Filter by account"></select>
-      <select id="fCategory" aria-label="Filter by category"></select>
-      <select id="fType" aria-label="Filter by type">
+      <select id="fAccount" aria-label="Filter by account" data-picker-title="Filter by account"></select>
+      <select id="fCategory" aria-label="Filter by category" data-picker-title="Filter by category"></select>
+      <select id="fType" aria-label="Filter by type" data-picker-title="Filter by type">
         <option value="all">All types</option>
         <option value="expense">Expenses</option>
         <option value="income">Income</option>
@@ -983,7 +1028,7 @@
         <label class="inline">From <input type="date" id="fFrom"></label>
         <label class="inline">To <input type="date" id="fTo"></label>
         <label class="inline">Sort
-          <select id="fSort" style="width:auto">
+          <select id="fSort" style="width:auto" data-picker-title="Sort transactions">
             <option value="date-desc">Newest first</option>
             <option value="date-asc">Oldest first</option>
             <option value="amount-desc">Amount: high to low</option>
@@ -1070,8 +1115,8 @@
     <h2 class="section">Transactions <button class="btn sm primary" id="adAdd">+ Add transaction</button></h2>
     <div class="card filters ad-filters">
       <input class="search" type="search" id="adSearch" placeholder="Search description…" aria-label="Search this account's transactions">
-      <select id="adCategory" aria-label="Filter by category"></select>
-      <select id="adType" aria-label="Filter by type">
+      <select id="adCategory" aria-label="Filter by category" data-picker-title="Filter by category"></select>
+      <select id="adType" aria-label="Filter by type" data-picker-title="Filter by type">
         <option value="all">All types</option>
         <option value="expense">Expenses</option>
         <option value="income">Income</option>
@@ -1274,10 +1319,10 @@
       </div>
       <!-- Account and date as two tappable pills (the native pickers open on tap). -->
       <div class="pill-row">
-        <label class="field pill-field"><span id="txAccLabel">Account</span><select name="accountId" required></select></label>
+        <label class="field pill-field"><span id="txAccLabel">Account</span><select name="accountId" required data-picker-title="Choose account"></select></label>
         <label class="field pill-field"><span>Date</span><input type="date" name="date" required></label>
       </div>
-      <label class="field" id="txToField" hidden><span>To account</span><select name="toAccountId"></select></label>
+      <label class="field" id="txToField" hidden><span>To account</span><select name="toAccountId" data-picker-title="Transfer to"></select></label>
       <label class="field" id="txRecvField" hidden><span id="txRecvLabel">Amount received</span>
         <input class="num" type="number" name="received" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00">
       </label>
@@ -1309,14 +1354,14 @@
       <label class="field"><span>Account name</span><input type="text" name="name" maxlength="40" placeholder="e.g. Al Rajhi Checking" required></label>
       <div class="two">
         <label class="field"><span>Type</span>
-          <select name="type">
+          <select name="type" data-picker-title="Account type">
             <option value="checking">Checking</option>
             <option value="savings">Savings</option>
             <option value="credit">Credit card</option>
             <option value="cash">Cash</option>
           </select>
         </label>
-        <label class="field"><span>Currency</span><select name="currency"></select></label>
+        <label class="field"><span>Currency</span><select name="currency" data-picker-title="Choose currency"></select></label>
       </div>
       <label class="field"><span id="accStartLabel">Starting balance (SAR)</span><input class="num" type="number" name="startBalance" step="0.01" inputmode="decimal" placeholder="0.00"></label>
       <label class="field"><span>Card or account last 4 digits (optional)</span>
@@ -1346,7 +1391,7 @@
     </div>
     <div class="dlg-body" id="catDeleteBody" hidden>
       <p id="catDeleteMsg" style="margin:0;color:var(--text-2)"></p>
-      <label class="field"><span>Move them to</span><select name="moveTo"></select></label>
+      <label class="field"><span>Move them to</span><select name="moveTo" data-picker-title="Move them to"></select></label>
     </div>
     <div class="dlg-foot" id="catEditFoot">
       <button type="button" class="btn danger left" id="catDelete">Delete</button>
@@ -1368,7 +1413,7 @@
       <label class="field"><span>Budget name</span><input type="text" name="name" maxlength="40" placeholder="e.g. Groceries &amp; dining" required></label>
       <div class="two">
         <label class="field"><span>Monthly limit (SAR)</span><input class="num" type="number" name="limit" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00" required></label>
-        <label class="field"><span>Category</span><select name="category"></select></label>
+        <label class="field"><span>Category</span><select name="category" data-picker-title="Budget category"></select></label>
       </div>
       <div class="field">
         <span>Applies to</span>
@@ -1443,6 +1488,13 @@
     <button type="button" class="btn" data-close>Cancel</button>
     <button type="button" class="btn primary" id="appsSave">Save</button>
   </div>
+</dialog>
+
+<!-- Picker: the themed list every dropdown opens (see "Pickers" in the script). Last, so it sits above other pop-ups. -->
+<dialog id="pickerDialog">
+  <div class="dlg-head"><h3 id="pickerTitle">Choose</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+  <div class="pick-search" id="pickerSearchWrap" hidden><input type="search" id="pickerSearch" placeholder="Search…" aria-label="Search the list" autocomplete="off"></div>
+  <div class="dlg-body pick-list" id="pickerList" role="listbox" aria-labelledby="pickerTitle"></div>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -3202,6 +3254,7 @@
     $('#txToField').hidden = !transfer;
     $('#txCatField').hidden = transfer;
     $('#txAccLabel').textContent = transfer ? 'From account' : 'Account';
+    $('#txForm').accountId.dataset.pickerTitle = transfer ? 'Transfer from' : 'Choose account';
     $('#txSave').textContent = editingTx ? 'Save changes' : `Save ${type}`;
     if (!transfer) renderTxCatGrid();
     syncTxFx();
@@ -4770,6 +4823,100 @@
         <dt>Category</dt><dd>${esc(suggestCategory(p.merchant))} <span class="none">(suggested)</span></dd>
       </dl>${extra}`;
   });
+
+  // ---------- Pickers (every <select>) ----------
+  // Android's own dropdown list ignores the app's theme, so each <select> gets a themed field in front of it that opens
+  // one shared bottom-sheet picker. The <select> stays (hidden) as the source of truth: the code keeps setting and
+  // reading its options and value, and choosing an option sets its value and fires "change", like a real selection.
+  const PICKER_SEARCH_MIN = 9; // more than 8 options: add a search box
+  const selectValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  const selectIndex = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'selectedIndex');
+  let pickerSelect = null;
+
+  /** What an option shows: an account (color dot, balance), a category (icon), or just its text. */
+  function pickerItem(o) {
+    const text = o.textContent;
+    const acc = state && accById(o.value); // fields are set up before the data loads
+    if (acc && acc.name === text) return { kind: 'account', text, lead: `<span class="pick-dot" style="background:${esc(acc.color)}"></span>`, right: fmtCur(nativeBalance(acc), accCur(acc)) };
+    if (state && o.value === text && state.categories.includes(text)) return { kind: 'category', text, lead: `<span class="ci tinted" style="--c:${esc(catColor(text))}">${ic(catIconId(text))}</span>` };
+    return { kind: 'text', text, lead: '', right: '' };
+  }
+
+  function enhanceSelect(sel) {
+    if (sel._picker || sel.hidden) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pick-field';
+    btn.setAttribute('aria-haspopup', 'dialog');
+    if (sel.getAttribute('style')) btn.setAttribute('style', sel.getAttribute('style'));
+    if (sel.getAttribute('aria-label')) btn.setAttribute('aria-label', sel.getAttribute('aria-label'));
+    sel.before(btn); // in front of the select, so tapping a wrapping <label> opens the picker
+    sel.classList.add('picker-source');
+    sel._picker = btn;
+    btn.addEventListener('click', () => openPicker(sel));
+    // Keep the field in step when code sets the value, replaces the options, or marks the field invalid.
+    Object.defineProperty(sel, 'value', { configurable: true, get() { return selectValue.get.call(this); }, set(v) { selectValue.set.call(this, v); syncPickerField(this); } });
+    Object.defineProperty(sel, 'selectedIndex', { configurable: true, get() { return selectIndex.get.call(this); }, set(v) { selectIndex.set.call(this, v); syncPickerField(this); } });
+    sel.focus = () => btn.focus(); // e.g. showFieldError() focusing the field
+    new MutationObserver(() => syncPickerField(sel)).observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-invalid', 'disabled'] });
+    syncPickerField(sel);
+  }
+
+  function syncPickerField(sel) {
+    const btn = sel._picker;
+    if (!btn) return;
+    const o = sel.selectedOptions[0];
+    const it = o ? pickerItem(o) : { text: '', lead: '' };
+    btn.innerHTML = `${it.lead}<span class="pick-value">${esc(it.text)}</span>${ic('chev-down', 'ico pick-arrow')}`;
+    btn.disabled = sel.disabled;
+    if (sel.getAttribute('aria-invalid') === 'true') btn.setAttribute('aria-invalid', 'true'); else btn.removeAttribute('aria-invalid');
+  }
+
+  function openPicker(sel) {
+    pickerSelect = sel;
+    const label = sel.closest('label') && sel.closest('label').querySelector('span');
+    $('#pickerTitle').textContent = sel.dataset.pickerTitle || sel.getAttribute('aria-label') || (label ? label.textContent : 'Choose');
+    $('#pickerSearch').value = '';
+    $('#pickerSearchWrap').hidden = sel.options.length < PICKER_SEARCH_MIN;
+    renderPickerList();
+    $('#pickerDialog').showModal();
+    // Start at the chosen option.
+    const list = $('#pickerList'), on = $('#pickerList [aria-selected="true"]');
+    if (on) list.scrollTop = on.getBoundingClientRect().top - list.getBoundingClientRect().top - (list.clientHeight - on.offsetHeight) / 2;
+  }
+
+  function renderPickerList() {
+    const sel = pickerSelect;
+    if (!sel) return;
+    const q = $('#pickerSearch').value.trim().toLowerCase();
+    const rows = [...sel.options].map((o, i) => ({ o, i })).filter(({ o }) => !o.hidden && (!q || o.textContent.toLowerCase().includes(q)));
+    $('#pickerList').innerHTML = rows.length ? rows.map(({ o, i }) => {
+      const it = pickerItem(o), on = i === sel.selectedIndex;
+      return `<button type="button" class="pick-opt" role="option" aria-selected="${on}" data-i="${i}" ${o.disabled ? 'disabled' : ''}>
+        ${it.lead}<span class="pick-text">${esc(it.text)}</span>${it.right ? `<span class="pick-right num">${esc(it.right)}</span>` : ''}${ic('check', 'ico pick-check')}
+      </button>`;
+    }).join('') : '<p class="pick-empty">Nothing matches your search.</p>';
+  }
+
+  $('#pickerSearch').addEventListener('input', renderPickerList);
+  $('#pickerList').addEventListener('click', (e) => {
+    const b = e.target.closest('.pick-opt');
+    const sel = pickerSelect;
+    if (!b || !sel) return;
+    const i = Number(b.dataset.i), changed = i !== sel.selectedIndex;
+    sel.selectedIndex = i;
+    $('#pickerDialog').close();
+    if (changed) { sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+  $('#pickerDialog').addEventListener('close', () => { pickerSelect = null; });
+
+  // Every <select> in the page now, plus the ones the Monefy import screen draws as you go.
+  $$('select').forEach(enhanceSelect);
+  new MutationObserver((changes) => changes.forEach((c) => c.addedNodes.forEach((n) => {
+    if (n.nodeType !== 1) return;
+    if (n.matches('select')) enhanceSelect(n);
+    n.querySelectorAll('select').forEach(enhanceSelect);
+  }))).observe($('#impBody'), { childList: true, subtree: true });
 
   // ---------- Quick add (the "Add Transaction" launcher) ----------
   // Shows only the add pop-up: no dashboard, balances or history (it can open over the lock screen). The most used
