@@ -49,7 +49,7 @@ App icons and splash screens are generated from `assets/` with `npx @capacitor/a
 
 ### Automatic purchase detection (Android)
 
-The app can detect card purchases in bank SMS, and optionally in bank-app notifications, then offer them as ready-to-save expenses. Turn it on under **Accounts → Automatic purchase detection** and add your bank's SMS sender name.
+The app can detect card purchases in bank SMS, and optionally in bank-app notifications, then offer them as ready-to-save expenses. Turn it on under **Settings → Notifications → Automatic purchase detection** and add your bank's SMS sender name.
 
 - Native code lives in `android/app/src/main/java/com/myname/expensetracker/purchases/`: `SmsReceiver` (works while the app is closed), `BankNotificationListener` (optional; needs "Notification access"), `PurchaseParser`, `PurchaseStore` (on-device storage and de-duplication) and `PurchaseDetectionPlugin` (the bridge to `index.html`).
 - Only messages from the senders and apps you choose are read. One-time passwords and verification codes are never processed. Messages never leave the phone, and only the extracted details (amount, currency, merchant, card's last 4 digits, date/time) are stored.
@@ -60,14 +60,14 @@ The app can detect card purchases in bank SMS, and optionally in bank-app notifi
 The app works in SAR, but each account can have its own currency (Accounts → Edit → Currency; the list is `CURRENCIES` in `index.html`).
 
 - A transaction's `amount` is always SAR, so totals, charts, budgets and alerts never convert. On other-currency accounts the original amount and the rate used are saved too (`origAmount`/`currency`/`rate`, or `fromAmount`/`toAmount`/`rate` for transfers), so past transactions don't change when the rate does.
-- Rates (units per 1 SAR) come from a manual rate in **Accounts → Exchange rates**, else a free daily fetch (open.er-api.com, with the fawazahmed0 currency API as a fallback) cached for offline use, else the latest transaction's rate. Rates are only fetched when an account uses another currency.
+- Rates (units per 1 SAR) come from a manual rate in **Settings → Currency**, else a free daily fetch (open.er-api.com, with the fawazahmed0 currency API as a fallback) cached for offline use, else the latest transaction's rate. Rates are only fetched when an account uses another currency.
 - Account balances show in the account's currency with the SAR equivalent at today's rate; the total balance uses that SAR value.
 
 ## Import from Monefy
 
-**Accounts → Import & backup → Import…** reads a Monefy CSV export. It shows a preview, lets you map accounts, categories and unmatched transfers, backs up your current data, then imports and compares each account's balance with Monefy's.
+**Settings → Data → Import from Monefy** reads a Monefy CSV export. It shows a preview, lets you map accounts, categories and unmatched transfers, backs up your current data, then imports and compares each account's balance with Monefy's.
 
 - Parsing, transfer pairing and duplicate detection live in `monefy-import.js`, which doesn't touch the page, so it's tested in Node: `npm test`.
 - Columns are read by position (Monefy has two columns named "currency"), and the converted SAR amount is what gets imported. `Initial balance '…'` rows set starting balances. Matching `To '…'` / `From '…'` rows become one transfer, and transfers never count as spending or income.
-- Re-importing a file skips rows that were already imported. The backup (restore it under **Import & backup**) is only replaced by an import that changes something.
+- Re-importing a file skips rows that were already imported. The backup (restore it under **Settings → Data**) is only replaced by an import that changes something.
 - Keep real exports in `import-data/` (git-ignored). `npm run check:monefy` dry-runs `import-data/monefy.csv` and prints the balance check.

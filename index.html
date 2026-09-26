@@ -465,6 +465,19 @@
   .acc-menu button:hover { background: var(--surface-2); }
   .acc-menu button.danger { color: var(--neg); }
 
+  /* Settings page: tappable rows with an icon, title, description and chevron */
+  button.set-row { width: 100%; border: 0; border-top: 1px solid var(--border); background: none; text-align: left; font: inherit; color: inherit; }
+  button.set-row:first-child { border-top: 0; }
+  .set-row.tap { cursor: pointer; min-height: 60px; }
+  .set-row.tap:hover { background: var(--surface-2); }
+  .set-row.tap:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .set-row .t, .set-row .d { display: block; }
+  .set-icon { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--accent); }
+  .set-icon svg { width: 19px; height: 19px; }
+  .set-row .chev { color: var(--muted); font-size: 22px; line-height: 1; flex: none; }
+  .set-sub { font-size: 14px; font-weight: 600; color: var(--text-2); margin: 16px 2px 6px; }
+  .set-row.block > * { min-width: 0; } /* let rows like the manual exchange rate shrink to a phone's width */
+
   /* "Include in total balance" */
   .check-row { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
   .chip.off { opacity: .75; display: inline-flex; align-items: center; gap: 4px; font-style: italic; }
@@ -617,10 +630,6 @@
         <span class="brand-mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 3v18M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2 2.6 5 3.2 5 1.4 5 3.3-2.2 3.2-5 3.2-5-1.2-5-3.2"/></svg></span>
         MoneyTracker
       </div>
-      <button class="btn" id="exportBtn" title="Download all transactions as CSV">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        <span class="hide-sm">Export CSV</span>
-      </button>
       <div class="bell-wrap">
         <button class="btn icon-btn" id="bellBtn" aria-haspopup="true" aria-expanded="false" aria-label="Notifications" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -636,6 +645,9 @@
         </div>
       </div>
       <button class="btn icon-btn" id="themeBtn" title="Toggle light / dark mode" aria-label="Toggle light or dark mode"></button>
+      <button class="btn icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" data-tab="dashboard" aria-selected="true">Dashboard</button>
@@ -796,40 +808,6 @@
     <h2 class="section" style="margin-top:4px">Your accounts <button class="btn sm" id="accReorder">Reorder</button></h2>
     <p class="tile-sub" id="accReorderHint" style="margin:-4px 2px 10px" hidden>Drag ≡ or use the arrows to arrange your accounts. This order is used everywhere in the app. Tap Done to save.</p>
     <div class="acc-grid" id="accGrid"></div>
-
-    <h2 class="section">Categories</h2>
-    <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
-    <div class="card cat-list" id="catList"></div>
-
-    <h2 class="section" id="ratesSection">Exchange rates</h2>
-    <p class="tile-sub" style="margin:-4px 2px 10px">Used to show other-currency accounts in SAR. Updated once a day; a manual rate replaces the fetched one.</p>
-    <div class="card set-list" id="ratesList"></div>
-
-    <h2 class="section" id="importSection">Import &amp; backup</h2>
-    <div class="card set-list">
-      <div class="set-row">
-        <div class="grow"><div class="t">Import from Monefy</div><div class="d">Bring in accounts, transactions and transfers from a Monefy CSV export.</div></div>
-        <button class="btn" id="importOpen">Import…</button>
-      </div>
-      <div class="set-row" id="backupRow" hidden>
-        <div class="grow"><div class="t">Backup</div><div class="d" id="backupDesc"></div></div>
-        <button class="btn" id="backupRestore">Restore</button>
-      </div>
-    </div>
-
-    <h2 class="section" id="detect">Automatic purchase detection</h2>
-    <p class="tile-sub" style="margin:-4px 2px 10px">Spot card purchases in your bank’s SMS or app notifications and add them in a tap. Everything stays on this phone.</p>
-    <div class="card set-list" id="detectSettings"></div>
-    <div class="card set-list" id="detectTest" style="margin-top:12px" hidden>
-      <div class="set-row block">
-        <div><div class="t">Test with a sample message</div>
-        <div class="d">Paste a bank SMS to see what would be detected. It’s checked on this phone and isn’t saved.</div></div>
-        <input type="text" id="ptSender" placeholder="Sender (optional), e.g. AlRajhiBank" autocomplete="off" aria-label="Sender">
-        <textarea class="msg" id="ptText" dir="auto" placeholder="Paste a message…" aria-label="Sample message"></textarea>
-        <div><button class="btn" id="ptRun">Test</button></div>
-        <div class="parse-out" id="ptOut" hidden aria-live="polite"></div>
-      </div>
-    </div>
   </section>
 
   <!-- ACCOUNT DETAILS (opened from an account on the dashboard; not a tab) -->
@@ -896,6 +874,79 @@
     </div>
     <div class="list-head"><span id="adCount"></span><span class="tile-sub" id="adSwipeHint">Swipe left on a transaction to delete it</span></div>
     <div id="adList"></div>
+  </section>
+
+  <!-- SETTINGS (opened from the gear in the header; not a tab) -->
+  <section class="view" id="view-settings" hidden>
+    <div class="acc-head">
+      <button class="btn icon-btn" id="setBack" aria-label="Back" title="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="grow"><h2>Settings</h2></div>
+    </div>
+
+    <h2 class="section">General</h2>
+    <div class="card set-list">
+      <button class="set-row tap" id="setTheme">
+        <span class="set-icon" id="setThemeIcon" aria-hidden="true"></span>
+        <span class="grow"><span class="t">Appearance</span><span class="d" id="setThemeDesc"></span></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+    </div>
+
+    <h2 class="section">Categories</h2>
+    <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
+    <div class="card cat-list" id="catList"></div>
+
+    <h2 class="section">Notifications</h2>
+    <div class="card set-list">
+      <div class="set-row" id="setNotifRow">
+        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+        <span class="grow"><span class="t">Budget alerts</span><span class="d" id="setNotifDesc"></span></span>
+        <button class="btn sm" id="setNotifEnable" hidden>Enable</button>
+      </div>
+    </div>
+    <h3 class="set-sub" id="detect">Automatic purchase detection</h3>
+    <p class="tile-sub" style="margin:-2px 2px 10px">Spot card purchases in your bank’s SMS or app notifications and add them in a tap. Everything stays on this phone.</p>
+    <div class="card set-list" id="detectSettings"></div>
+    <div class="card set-list" id="detectTest" style="margin-top:12px" hidden>
+      <div class="set-row block">
+        <div><div class="t">Test with a sample message</div>
+        <div class="d">Paste a bank SMS to see what would be detected. It’s checked on this phone and isn’t saved.</div></div>
+        <input type="text" id="ptSender" placeholder="Sender (optional), e.g. AlRajhiBank" autocomplete="off" aria-label="Sender">
+        <textarea class="msg" id="ptText" dir="auto" placeholder="Paste a message…" aria-label="Sample message"></textarea>
+        <div><button class="btn" id="ptRun">Test</button></div>
+        <div class="parse-out" id="ptOut" hidden aria-live="polite"></div>
+      </div>
+    </div>
+
+    <h2 class="section" id="ratesSection">Currency</h2>
+    <p class="tile-sub" style="margin:-4px 2px 10px">Exchange rates show other-currency accounts in SAR. Updated once a day; a manual rate replaces the fetched one.</p>
+    <div class="card set-list" id="ratesList"></div>
+
+    <h2 class="section" id="importSection">Data</h2>
+    <div class="card set-list">
+      <button class="set-row tap" id="exportRow">
+        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+        <span class="grow"><span class="t">Export CSV</span><span class="d">Save all transactions, accounts and budgets as a spreadsheet file.</span></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+      <button class="set-row tap" id="importOpen">
+        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></svg></span>
+        <span class="grow"><span class="t">Import from Monefy</span><span class="d">Bring in accounts, transactions and transfers from a Monefy CSV export.</span></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+      <button class="set-row tap" id="backupRow" hidden>
+        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg></span>
+        <span class="grow"><span class="t">Restore backup</span><span class="d" id="backupDesc"></span></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+      <button class="set-row tap" id="sampleRow">
+        <span class="set-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L4.5 18.5A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.5L14 9V3"/></svg></span>
+        <span class="grow"><span class="t" id="sampleRowTitle"></span><span class="d" id="sampleRowDesc"></span></span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+    </div>
   </section>
 </main>
 
@@ -1499,6 +1550,7 @@
     chartAccount: 'all',
     range: 'month',
     reorder: null, // account ids in draft order while reordering on the Accounts page
+    settingsFrom: null, // page (and scroll position) the Settings page was opened from
     accountId: null, // account shown on the Account details page
     accRange: 'month',
     accFilters: { q: '', category: 'all', type: 'all' },
@@ -1518,6 +1570,7 @@
     renderAccounts();
     renderCategories();
     renderRates();
+    renderSettingsRows();
     renderBudgetSummary();
     renderBudgets();
     renderBell();
@@ -1712,6 +1765,38 @@
     }).join('');
     $('#accGrid').innerHTML = cards + `<button class="card add-card" data-action="add-account"><span><strong style="font-size:22px">+</strong><br>Add account</span></button>`;
   }
+
+  // ---------- Settings page ----------
+  // Opened from the gear in the header. Its sections (categories, detection, exchange rates, import…) are rendered by
+  // their own code as before; this only handles getting there and back, and the simple rows.
+  function openSettings() {
+    if (ui.tab !== 'settings') ui.settingsFrom = { tab: ui.tab, scrollY: window.scrollY };
+    setTab('settings');
+  }
+  function closeSettings() {
+    const from = ui.settingsFrom || { tab: 'dashboard', scrollY: 0 };
+    setTab(from.tab === 'settings' ? 'dashboard' : from.tab);
+    window.scrollTo({ top: from.scrollY || 0 });
+  }
+  $('#settingsBtn').addEventListener('click', () => (ui.tab === 'settings' ? closeSettings() : openSettings()));
+  $('#setBack').addEventListener('click', closeSettings);
+
+  function renderSettingsRows() {
+    const dark = isDark();
+    $('#setThemeIcon').innerHTML = dark ? MOON : SUN;
+    $('#setThemeDesc').textContent = `${dark ? 'Dark' : 'Light'} mode. Tap to switch to ${dark ? 'light' : 'dark'}.`;
+    const np = notifPermission();
+    $('#setNotifDesc').textContent =
+      np === 'granted' ? `${NOTIF_NOUN} are on. You’re alerted when a budget reaches 80% and 100%.`
+      : np === 'denied' ? `${NOTIF_NOUN} are blocked${LocalNotif ? ' (you can allow them in Android settings)' : ''}, so alerts appear in the app only.`
+      : np === 'unsupported' ? 'System notifications aren’t available here. Alerts appear in the app.'
+      : `Get budget alerts as ${NOTIF_NOUN.toLowerCase()} too.`;
+    $('#setNotifEnable').hidden = np !== 'default';
+    const sample = hasSample();
+    $('#sampleRowTitle').textContent = sample ? 'Clear sample data' : 'Load sample data';
+    $('#sampleRowDesc').textContent = sample ? 'Remove the sample accounts, transactions and budgets. Your own are kept.' : 'Add example accounts, transactions and budgets to explore the app.';
+  }
+  $('#setNotifEnable').addEventListener('click', async () => { await requestNotifPermission(); renderSettingsRows(); });
 
   // ---------- Account order ----------
   // Reorder mode edits a draft (ui.reorder = [account ids]); Done applies it to state.accounts, whose order every
@@ -1936,6 +2021,7 @@
     if (!LocalNotif) return;
     try { nativeNotifPerm = toPerm((await LocalNotif.checkPermissions()).display); } catch (e) { nativeNotifPerm = 'unsupported'; }
     renderBell();
+    renderSettingsRows();
   }
   const NOTIF_NOUN = LocalNotif ? 'Phone notifications' : 'Browser notifications';
   const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
@@ -2613,7 +2699,7 @@
       else if (fx.to === BASE) { data.amount = received; data.fromAmount = entered; data.rate = round6(entered / received); }
       else {
         const r = rateFor(fx.from);
-        if (!r) { showFieldError(f.amount, `No ${fx.from} exchange rate yet. Set one under Accounts → Exchange rates.`); return; }
+        if (!r) { showFieldError(f.amount, `No ${fx.from} exchange rate yet. Set one under Settings → Currency.`); return; }
         Object.assign(data, { amount: round2(entered / r), fromAmount: entered, toAmount: received, rate: round6(r) });
       }
     }
@@ -2920,7 +3006,8 @@
   const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
   const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
   function paintThemeBtn() { $('#themeBtn').innerHTML = isDark() ? SUN : MOON; }
-  function onThemeChange() { paintThemeBtn(); renderCategories(); if (ui.tab === 'dashboard' && state.accounts.length) renderCharts(); if (ui.tab === 'account') renderAccountDetails(); }
+  function onThemeChange() { paintThemeBtn(); renderSettingsRows(); renderCategories(); if (ui.tab === 'dashboard' && state.accounts.length) renderCharts(); if (ui.tab === 'account') renderAccountDetails(); }
+  $('#setTheme').addEventListener('click', () => $('#themeBtn').click()); // Settings → Appearance does the same as the header button
   $('#themeBtn').addEventListener('click', () => {
     const next = isDark() ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
@@ -2934,7 +3021,7 @@
   // ---------- Events ----------
   $$('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('#fab').addEventListener('click', () => openTxDialog(null, ui.tab === 'account' ? ui.accountId : undefined));
-  $('#exportBtn').addEventListener('click', exportCSV);
+  $('#exportRow').addEventListener('click', exportCSV);
   // ---------- Dialogs (shared behavior for every pop-up) ----------
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const isSheet = () => window.matchMedia('(max-width: 600px)').matches;
@@ -3295,6 +3382,13 @@
   document.addEventListener('click', () => { if (!$('#notifPanel').hidden) toggleNotifPanel(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#notifPanel').hidden) toggleNotifPanel(false); });
 
+  // Settings → Data: the sample-data row clears sample data when there is some, and loads it otherwise.
+  $('#sampleRow').addEventListener('click', async () => {
+    if (hasSample()) { $('#clearSampleBtn').click(); return; }
+    if (state.accounts.length && !(await confirmAsk('Load sample data?', 'Sample accounts, transactions and budgets will be added next to your own. You can clear them again here.', 'Load sample data', false))) return;
+    $('#loadSampleBtn').click();
+  });
+
   $('#clearSampleBtn').addEventListener('click', async () => {
     const ok = await confirmAsk('Clear sample data?', 'This removes the sample accounts, transactions and budgets, including anything you added to those sample accounts. Accounts and budgets you created yourself are kept.', 'Clear sample data');
     if (!ok) return;
@@ -3621,7 +3715,7 @@
         <p>${mismatches ? `${plural(mismatches, 'account')} ${mismatches === 1 ? 'differs' : 'differ'} from Monefy. The notes explain why.` : 'Every account matches the balance Monefy shows.'} Compare these with Monefy’s account list.</p>
         <div style="overflow-x:auto"><table class="imp-table"><thead><tr><th>Account</th><th class="r">Monefy</th><th class="r">This app</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       </div>
-      <p class="imp-note" style="margin:0">${s.backedUp ? 'A backup of your data from before the import was saved. You can restore it here or later under Accounts → Import &amp; backup.' : 'Nothing changed, so your existing backup was kept.'}</p>`;
+      <p class="imp-note" style="margin:0">${s.backedUp ? 'A backup of your data from before the import was saved. You can restore it here or later under Settings → Data.' : 'Nothing changed, so your existing backup was kept.'}</p>`;
     foot.innerHTML = `${readBackup() ? '<button type="button" class="btn left" id="impRestore">Restore backup</button>' : ''}
       <button type="button" class="btn primary" data-close>Done</button>`;
   }
@@ -3672,7 +3766,7 @@
   }
 
   $('#importOpen').addEventListener('click', openImport);
-  $('#backupRestore').addEventListener('click', restoreBackup);
+  $('#backupRow').addEventListener('click', restoreBackup);
   $('#importDialog').addEventListener('change', (e) => {
     const t = e.target, c = imp.choices;
     if (t.id === 'impFile') { if (t.files && t.files[0]) loadImportFile(t.files[0]); return; }
@@ -4086,6 +4180,7 @@
       else if ($$('.acc-menu').some((m) => !m.hidden)) closeAccMenus();
       else if (ui.reorder) finishReorder();
       else if (ui.tab === 'account') closeAccountDetails();
+      else if (ui.tab === 'settings') closeSettings();
       else if (ui.tab !== 'dashboard') setTab('dashboard');
       else NativeApp.exitApp();
     });
