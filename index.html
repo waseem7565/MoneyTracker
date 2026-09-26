@@ -170,6 +170,9 @@
   /* Chart controls */
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 24px 0 12px; }
   .controls h2 { margin: 0 auto 0 0; font-size: 15px; color: var(--text-2); font-weight: 600; }
+  /* Insights: heading, then the account selector, then the period tabs, one per line. */
+  .controls.stacked { flex-direction: column; align-items: flex-start; }
+  @media (max-width: 560px) { .controls.stacked select { width: 100%; } }
   .seg { display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
   .seg button { border: 0; background: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; color: var(--text-2); font-size: 14px; white-space: nowrap; }
   .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
@@ -676,7 +679,7 @@
       <h2 class="section">Accounts</h2>
       <div class="acc-strip" id="accStrip"></div>
 
-      <div class="controls">
+      <div class="controls stacked">
         <h2>Insights</h2>
         <select id="chartAccount" aria-label="Account for charts"></select>
         <div class="seg" id="rangeSeg" role="group" aria-label="Time range">
