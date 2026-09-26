@@ -2506,6 +2506,14 @@
   async function loadImportFile(file) {
     let text;
     try { text = await file.text(); } catch (e) { imp.error = 'Couldn’t read that file.'; renderImport(); return; }
+    // Any file can be picked (phones often label CSVs wrongly), so check the content: Monefy's own backups are binary.
+    if (/\u0000|�/.test(text.slice(0, 4000))) {
+      imp.error = /backup/i.test(file.name)
+        ? 'That’s a Monefy backup file, which only Monefy can read. In Monefy, export your data as a CSV file and choose that instead.'
+        : 'That isn’t a text (CSV) file. In Monefy, export your data as a CSV file and choose that.';
+      renderImport();
+      return;
+    }
     const parsed = MI.parseMonefy(text);
     if (!parsed.rows.length) { imp.error = parsed.errors.length ? parsed.errors[0].reason : 'No transactions found in that file.'; renderImport(); return; }
     imp.plan = MI.buildPlan(parsed);
@@ -2527,8 +2535,8 @@
       $('#impTitle').textContent = 'Import from Monefy';
       body.innerHTML = `
         <div class="imp-file">
-          <p class="imp-note" style="margin:0;font-size:14px">Export your data from Monefy as a CSV file, then choose it here. You’ll review everything before anything is imported, and your current data is backed up first.</p>
-          <input type="file" id="impFile" accept=".csv,text/csv,text/comma-separated-values" aria-label="Monefy CSV file">
+          <p class="imp-note" style="margin:0;font-size:14px">In Monefy, export your data as a CSV file (not a backup), then choose it here. You’ll review everything before anything is imported, and your current data is backed up first.</p>
+          <input type="file" id="impFile" aria-label="Monefy CSV file">
           ${imp.error ? `<span class="field-err" role="alert">${esc(imp.error)}</span>` : ''}
         </div>`;
       foot.innerHTML = '<button type="button" class="btn" data-close>Cancel</button>';
