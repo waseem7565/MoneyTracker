@@ -224,6 +224,13 @@
   .tx .amt { font-weight: 600; white-space: nowrap; }
   .amt.income { color: var(--pos); }
   .amt.transfer { color: var(--text-2); }
+  .amt .sub { display: block; text-align: right; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .fx-note { font-size: 13px; color: var(--text-2); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-top: -8px; }
+  .fx-note .warn { color: var(--neg); }
+  .link-btn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 500; }
+  .rate-row { display: flex; align-items: center; gap: 8px; }
+  .rate-row input { flex: 1; }
+  .rate-row span { white-space: nowrap; color: var(--text-2); font-size: 14px; }
   .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
   .empty { padding: 32px 16px; text-align: center; color: var(--muted); }
 
@@ -724,6 +731,10 @@
     <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
     <div class="card cat-list" id="catList"></div>
 
+    <h2 class="section" id="ratesSection">Exchange rates</h2>
+    <p class="tile-sub" style="margin:-4px 2px 10px">Used to show other-currency accounts in SAR. Updated once a day; a manual rate replaces the fetched one.</p>
+    <div class="card set-list" id="ratesList"></div>
+
     <h2 class="section" id="importSection">Import &amp; backup</h2>
     <div class="card set-list">
       <div class="set-row">
@@ -768,14 +779,22 @@
         <label><input type="radio" name="type" value="income"><span>Income</span></label>
         <label><input type="radio" name="type" value="transfer"><span>Transfer</span></label>
       </div>
-      <label class="field"><span>Amount (SAR)</span>
+      <label class="field"><span id="txAmountLabel">Amount (SAR)</span>
         <input class="amount-input num" type="number" name="amount" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" required>
       </label>
+      <div class="fx-note num" id="txFx" hidden aria-live="polite"></div>
+      <div class="field" id="txRateField" hidden>
+        <span>Exchange rate for this transaction</span>
+        <div class="rate-row"><span>1 SAR =</span><input class="num" type="number" name="rate" inputmode="decimal" step="any" min="0" aria-label="Exchange rate"><span id="txRateCur">LKR</span></div>
+      </div>
       <div class="two">
         <label class="field"><span>Date</span><input type="date" name="date" required></label>
         <label class="field"><span id="txAccLabel">Account</span><select name="accountId" required></select></label>
       </div>
       <label class="field" id="txToField" hidden><span>To account</span><select name="toAccountId"></select></label>
+      <label class="field" id="txRecvField" hidden><span id="txRecvLabel">Amount received</span>
+        <input class="num" type="number" name="received" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00">
+      </label>
       <div class="field" id="txCatField">
         <span>Category</span>
         <div class="cat-row">
@@ -1196,7 +1215,9 @@
   let fxFetching = null;
   /** Fetches rates at most once a day (or now, if forced). Only runs when an account uses another currency. */
   async function refreshRates(force = false) {
-    if (!force && (!foreignCurrencies().length || (fxCache && Date.now() - fxCache.fetchedAt < 864e5))) return false;
+    const curs = foreignCurrencies();
+    const missing = curs.some((c) => !(fxCache && fxCache.rates && fxCache.rates[c]));
+    if (!force && (!curs.length || (!missing && Date.now() - fxCache.fetchedAt < 864e5))) return false;
     if (fxFetching) return fxFetching;
     fxFetching = (async () => {
       for (const src of RATE_SOURCES) {
@@ -1348,6 +1369,7 @@
     renderTransactions();
     renderAccounts();
     renderCategories();
+    renderRates();
     renderBudgetSummary();
     renderBudgets();
     renderBell();
@@ -1369,8 +1391,10 @@
 
   function renderSummary() {
     const total = state.accounts.reduce((s, a) => s + balanceOf(a), 0);
+    const noRate = foreignCurrencies().filter((c) => !rateFor(c));
     $('#sumBalance').textContent = fmt(total);
-    $('#sumBalanceSub').textContent = `Across ${state.accounts.length} account${state.accounts.length === 1 ? '' : 's'}`;
+    $('#sumBalanceSub').textContent = `Across ${state.accounts.length} account${state.accounts.length === 1 ? '' : 's'}` +
+      (noRate.length ? ` · ${noRate.join(', ')} not included (no exchange rate yet)` : foreignCurrencies().length ? ' · converted at today’s rates' : '');
 
     const { start, end } = rangeBounds('month');
     const monthTx = state.transactions.filter((t) => t.type === 'expense' && t.date >= start && t.date <= end);
@@ -1391,9 +1415,16 @@
         <span class="swatch-dot" style="background:${esc(a.color)}"></span>
         <span class="grow">
           <div class="name">${esc(a.name)} <span class="meta">· ${ACC_TYPES[a.type] || a.type}</span></div>
-          <div class="bal num">${fmt(balanceOf(a))}</div>
+          <div class="bal num">${fmtCur(nativeBalance(a), accCur(a))}</div>
+          ${accCur(a) !== BASE ? `<div class="meta num">${esc(sarEquivalent(a))}</div>` : ''}
         </span>
       </button>`).join('');
+  }
+
+  /** "≈ SAR 3,120.00" for an account in another currency, at today's rate. */
+  function sarEquivalent(a) {
+    const sar = toSar(nativeBalance(a), accCur(a));
+    return sar === null ? `No ${accCur(a)} rate yet` : `≈ ${fmt(sar)}`;
   }
 
   function renderAccountSelects() {
@@ -1444,17 +1475,32 @@
       if (isTransfer(t)) {
         const to = accById(t.toAccountId);
         // Viewing one account: show whether money came in or went out. Otherwise it's neutral.
-        const sign = ui.filters.account === 'all' ? '⇄ ' : effectOn(t, ui.filters.account) > 0 ? '+' : '−';
+        const filtered = ui.filters.account !== 'all' ? accById(ui.filters.account) : null;
+        const sign = !filtered ? '⇄ ' : effectOn(t, filtered.id) > 0 ? '+' : '−';
+        // Show it in the viewed account's currency; otherwise in SAR. Other-currency sides are listed underneath.
+        const shown = filtered && accCur(filtered) !== BASE ? fmtCur(Math.abs(effectOn(t, filtered.id)), accCur(filtered)) : fmt(t.amount);
+        const sides = [t.fromAmount != null && fmtCur(t.fromAmount, accCur(a)), t.toAmount != null && fmtCur(t.toAmount, accCur(to))].filter(Boolean);
+        const sub = filtered && accCur(filtered) !== BASE ? fmt(t.amount) : sides.join(' → ');
         return `<li><button class="tx" data-edit-tx="${esc(t.id)}">
           <span class="swatch-dot" style="background:${esc(a ? a.color : '#999')}"></span>
           <span class="grow">
             <div class="desc">${esc(t.description || `${a ? a.name : 'Unknown'} → ${to ? to.name : 'Unknown'}`)}</div>
             <div class="meta"><span class="chip">Transfer</span> ${esc(a ? a.name : 'Unknown')} → ${esc(to ? to.name : 'Unknown')} · ${dateFmt.format(parseISO(t.date))}</div>
           </span>
-          <span class="amt num transfer">${sign}${fmt(t.amount)}</span>
+          <span class="amt num transfer">${sign}${shown}${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>
         </button></li>`;
       }
       const sign = t.type === 'income' ? '+' : '−';
+      if (t.origAmount != null && t.currency && t.currency !== BASE) {
+        return `<li><button class="tx" data-edit-tx="${esc(t.id)}">
+          <span class="swatch-dot" style="background:${esc(a ? a.color : '#999')}"></span>
+          <span class="grow">
+            <div class="desc">${esc(t.description || t.category)}</div>
+            <div class="meta"><span class="chip">${esc(t.category)}</span> ${esc(a ? a.name : 'Unknown')} · ${dateFmt.format(parseISO(t.date))}</div>
+          </span>
+          <span class="amt num ${t.type}">${sign}${fmtCur(t.origAmount, t.currency)}<span class="sub">${fmt(t.amount)}</span></span>
+        </button></li>`;
+      }
       return `<li><button class="tx" data-edit-tx="${esc(t.id)}">
         <span class="swatch-dot" style="background:${esc(a ? a.color : '#999')}"></span>
         <span class="grow">
@@ -1469,19 +1515,22 @@
   function renderAccounts() {
     const cards = state.accounts.map((a) => {
       const txs = state.transactions.filter((t) => touchesAccount(t, a.id));
-      const inc = txs.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-      const exp = txs.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      // In the account's own currency.
+      const cur = accCur(a), money = (n) => fmtCur(n, cur);
+      const inc = txs.filter((t) => t.type === 'income').reduce((s, t) => s + effectOn(t, a.id), 0);
+      const exp = -txs.filter((t) => t.type === 'expense').reduce((s, t) => s + effectOn(t, a.id), 0);
       const moved = txs.filter(isTransfer).reduce((s, t) => s + effectOn(t, a.id), 0);
       return `<div class="card acc-card" style="--acc:${esc(a.color)}">
         <div class="top">
-          <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span>${(a.cards || []).map((c) => ` <span class="chip num" title="Linked card">•${esc(c)}</span>`).join('')}</div>
+          <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span>${cur !== BASE ? ` <span class="chip">${cur}</span>` : ''}${(a.cards || []).map((c) => ` <span class="chip num" title="Linked card">•${esc(c)}</span>`).join('')}</div>
         </div>
-        <div><div class="tile-label">Current balance</div><div class="bal num">${fmt(balanceOf(a))}</div></div>
+        <div><div class="tile-label">Current balance</div><div class="bal num">${money(nativeBalance(a))}</div>
+          ${cur !== BASE ? `<div class="tile-sub num">${esc(sarEquivalent(a))}</div>` : ''}</div>
         <dl class="num">
-          <dt>Starting balance</dt><dd>${fmt(a.startBalance)}</dd>
-          <dt>Income</dt><dd>+${fmt(inc)}</dd>
-          <dt>Expenses</dt><dd>−${fmt(exp)}</dd>
-          ${txs.some(isTransfer) ? `<dt>Transfers (net)</dt><dd>${moved >= 0 ? '+' : '−'}${fmt(Math.abs(moved))}</dd>` : ''}
+          <dt>Starting balance</dt><dd>${money(a.startBalance)}</dd>
+          <dt>Income</dt><dd>+${money(inc)}</dd>
+          <dt>Expenses</dt><dd>−${money(exp)}</dd>
+          ${txs.some(isTransfer) ? `<dt>Transfers (net)</dt><dd>${moved >= 0 ? '+' : '−'}${money(Math.abs(moved))}</dd>` : ''}
           <dt>Transactions</dt><dd>${txs.length}</dd>
         </dl>
         <div class="actions">
@@ -1798,9 +1847,10 @@
     const dayBefore = iso(new Date(parseISO(start).getTime() - 864e5));
     const datasets = accounts.map((a) => {
       const delta = {};
+      const rate = rateFor(accCur(a)); // balances are charted in SAR at today's rate, like the total balance
       state.transactions.forEach((t) => {
-        if (t.date < start || t.date > end || !touchesAccount(t, a.id)) return;
-        delta[t.date] = (delta[t.date] || 0) + effectOn(t, a.id);
+        if (!rate || t.date < start || t.date > end || !touchesAccount(t, a.id)) return;
+        delta[t.date] = (delta[t.date] || 0) + effectOn(t, a.id) / rate;
       });
       let bal = balanceOf(a, dayBefore);
       const data = days.map((d) => (bal += delta[d] || 0, round2(bal)));
@@ -1973,10 +2023,16 @@
     const defaultAcc = presetAccountId || (ui.filters.account !== 'all' ? ui.filters.account : state.accounts[0].id);
     const src = tx || prefill;
     f.querySelector(`input[name=type][value=${tx ? tx.type : 'expense'}]`).checked = true;
-    f.amount.value = src ? src.amount : '';
+    // Amounts are shown in the account's own currency (the SAR amount is only used for SAR accounts).
+    f.amount.value = tx ? tx.origAmount ?? tx.fromAmount ?? tx.amount : src ? src.amount : '';
+    f.received.value = tx && isTransfer(tx) ? tx.toAmount ?? tx.amount : '';
     f.date.value = src ? src.date : todayISO();
     f.accountId.value = tx ? tx.accountId : (prefill && prefill.accountId) || defaultAcc;
     f.toAccountId.value = tx && isTransfer(tx) ? tx.toAccountId : (state.accounts.find((a) => a.id !== f.accountId.value) || state.accounts[0]).id;
+    // Editing keeps the transaction's own rate; new ones start at today's rate (filled in by syncTxFx).
+    txRate.cur = tx && tx.rate > 0 ? txFxMode().cur : null;
+    f.rate.value = tx && tx.rate > 0 ? tx.rate : '';
+    txRate.open = false;
     if (tx && tx.category && !state.categories.includes(tx.category)) f.category.insertAdjacentHTML('beforeend', `<option>${esc(tx.category)}</option>`);
     f.category.value = src && src.category ? src.category : state.categories.includes('Food') ? 'Food' : state.categories[0];
     f.description.value = src ? src.description : '';
@@ -1988,19 +2044,42 @@
   $('#txForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const f = e.target;
-    const amount = round2(parseFloat(f.amount.value));
-    if (!(amount > 0)) { showFieldError(f.amount, 'Enter an amount greater than zero.'); return; }
+    const entered = round2(parseFloat(f.amount.value));
+    if (!(entered > 0)) { showFieldError(f.amount, 'Enter an amount greater than zero.'); return; }
     if (!f.date.value) { showFieldError(f.date, 'Pick a date.'); return; }
     const type = f.querySelector('input[name=type]:checked').value;
     if (type === 'transfer' && f.toAccountId.value === f.accountId.value) { showFieldError(f.toAccountId, 'Choose a different account to transfer to.'); return; }
     const data = {
-      type, amount, date: f.date.value, accountId: f.accountId.value,
+      type, amount: entered, date: f.date.value, accountId: f.accountId.value,
       category: type === 'transfer' ? '' : f.category.value || 'Other', description: f.description.value.trim()
     };
     if (type === 'transfer') data.toAccountId = f.toAccountId.value;
+
+    // Currency: `amount` must end up in SAR, with the original amount(s) and the rate saved alongside.
+    const fx = txFxMode();
+    const round6 = (n) => Math.round(n * 1e6) / 1e6;
+    if (fx.mode === 'foreign') {
+      const rate = Number(f.rate.value);
+      if (!(rate > 0)) { txRate.open = true; syncTxFx(); showFieldError(f.rate, `Enter the exchange rate: how many ${fx.cur} for 1 SAR.`); return; }
+      data.amount = round2(entered / rate);
+      data.rate = round6(rate);
+      if (type === 'transfer') { data.fromAmount = entered; data.toAmount = entered; } else { data.origAmount = entered; data.currency = fx.cur; }
+    } else if (fx.mode === 'cross') {
+      const received = round2(parseFloat(f.received.value));
+      if (!(received > 0)) { showFieldError(f.received, `Enter the amount received in ${fx.to}.`); return; }
+      if (fx.from === BASE) { data.amount = entered; data.toAmount = received; data.rate = round6(received / entered); }
+      else if (fx.to === BASE) { data.amount = received; data.fromAmount = entered; data.rate = round6(entered / received); }
+      else {
+        const r = rateFor(fx.from);
+        if (!r) { showFieldError(f.amount, `No ${fx.from} exchange rate yet. Set one under Accounts → Exchange rates.`); return; }
+        Object.assign(data, { amount: round2(entered / r), fromAmount: entered, toAmount: received, rate: round6(r) });
+      }
+    }
+    if (!(data.amount > 0)) { showFieldError(f.amount, 'That amount is less than SAR 0.01.'); return; }
+
     if (editingTx) {
+      ['toAccountId', 'origAmount', 'currency', 'rate', 'fromAmount', 'toAmount'].forEach((k) => delete editingTx[k]);
       Object.assign(editingTx, data);
-      if (type !== 'transfer') delete editingTx.toAccountId;
     } else state.transactions.push({ id: uid(), ...data });
     const purchase = editingPurchase;
     if (purchase) {
@@ -2016,8 +2095,79 @@
     $('#txToField').hidden = !transfer;
     $('#txCatField').hidden = transfer;
     $('#txAccLabel').textContent = transfer ? 'From account' : 'Account';
+    syncTxFx();
   }
-  $('#txForm').addEventListener('change', (e) => { if (e.target.name === 'type') syncTxTypeUI(); });
+
+  // ----- Currency in the transaction pop-up -----
+  // 'sar': everything in SAR. 'foreign': one currency other than SAR (an LKR account, or a transfer between two LKR
+  // accounts), converted at a rate. 'cross': a transfer between different currencies, where the amounts sent and
+  // received set the rate.
+  const txRate = { cur: null, open: false }; // which currency the rate field was filled for; whether it's shown
+  function txFxMode() {
+    const f = $('#txForm');
+    const transfer = f.querySelector('input[name=type]:checked').value === 'transfer';
+    const from = accCur(accById(f.accountId.value));
+    const to = transfer ? accCur(accById(f.toAccountId.value)) : from;
+    if (from !== to) return { mode: 'cross', from, to };
+    return from === BASE ? { mode: 'sar' } : { mode: 'foreign', cur: from };
+  }
+
+  function syncTxFx() {
+    const f = $('#txForm');
+    const fx = txFxMode();
+    const amt = parseFloat(f.amount.value);
+    const note = $('#txFx');
+    $('#txRecvField').hidden = fx.mode !== 'cross';
+    $('#txRateField').hidden = true;
+    note.hidden = fx.mode === 'sar';
+    if (fx.mode === 'sar') { $('#txAmountLabel').textContent = 'Amount (SAR)'; return; }
+
+    if (fx.mode === 'cross') {
+      $('#txAmountLabel').textContent = `Amount sent (${fx.from})`;
+      $('#txRecvLabel').textContent = `Amount received (${fx.to})`;
+      const recv = parseFloat(f.received.value);
+      if (!(amt > 0 && recv > 0)) { note.textContent = `Enter both amounts. The exchange rate is worked out from them.`; return; }
+      if (fx.from === BASE) note.textContent = `Rate from these amounts: ${rateText(recv / amt, fx.to)}`;
+      else if (fx.to === BASE) note.textContent = `Rate from these amounts: ${rateText(amt / recv, fx.from)}`;
+      else {
+        const r = rateFor(fx.from);
+        note.textContent = `1 ${fx.from} = ${fmtRate(recv / amt)} ${fx.to}${r ? ` · ≈ ${fmt(amt / r)}` : ''}`;
+      }
+      return;
+    }
+
+    // One foreign currency: fill in today's rate the first time this currency is shown (editing keeps its saved rate).
+    $('#txAmountLabel').textContent = `Amount (${fx.cur})`;
+    $('#txRateCur').textContent = fx.cur;
+    if (txRate.cur !== fx.cur) {
+      txRate.cur = fx.cur;
+      const r = rateFor(fx.cur);
+      f.rate.value = r ? round6Rate(r) : '';
+    }
+    const rate = Number(f.rate.value);
+    const current = rateFor(fx.cur);
+    $('#txRateField').hidden = !(txRate.open || !(rate > 0));
+    if (!(rate > 0)) {
+      note.innerHTML = `<span class="warn">No ${esc(fx.cur)} exchange rate yet.</span> Enter the rate you got below.`;
+      return;
+    }
+    const custom = current && Math.abs(rate - current) / current > 1e-6;
+    note.innerHTML = `<span>${amt > 0 ? `≈ ${esc(fmt(amt / rate))} at ` : ''}${esc(rateText(rate, fx.cur))}${custom ? ' (your rate)' : ''}</span>` +
+      ($('#txRateField').hidden ? '<button type="button" class="link-btn" id="txRateEdit">Change rate</button>' : '');
+  }
+  const round6Rate = (r) => Math.round(r * 1e6) / 1e6;
+
+  $('#txForm').addEventListener('change', (e) => {
+    if (e.target.name === 'type') syncTxTypeUI();
+    else if (e.target.name === 'accountId' || e.target.name === 'toAccountId') syncTxFx();
+  });
+  $('#txForm').addEventListener('input', (e) => { if (['amount', 'received', 'rate'].includes(e.target.name)) syncTxFx(); });
+  $('#txFx').addEventListener('click', (e) => {
+    if (e.target.id !== 'txRateEdit') return;
+    txRate.open = true;
+    syncTxFx();
+    $('#txForm').rate.focus();
+  });
 
   $('#txDismiss').addEventListener('click', () => {
     if (!editingPurchase) return;
@@ -2067,6 +2217,7 @@
     f.startBalance.value = acc ? acc.startBalance : '';
     f.currency.innerHTML = Object.entries(CURRENCIES).map(([c, n]) => `<option value="${c}">${c} · ${esc(n)}</option>`).join('');
     f.currency.value = accCur(acc);
+    f.dataset.cur = f.currency.value;
     $('#accStartLabel').textContent = `Starting balance (${f.currency.value})`;
     f.cards.value = acc && acc.cards ? acc.cards.join(', ') : '';
     const used = state.accounts.map((a) => a.color.toLowerCase());
@@ -2082,7 +2233,7 @@
   $('#accSwatches').addEventListener('change', (e) => {
     if (e.target.id === 'accCustomColor') { accColor = e.target.value; renderSwatches(); }
   });
-  $('#accForm').addEventListener('submit', (e) => {
+  $('#accForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
     const name = f.name.value.trim();
@@ -2094,11 +2245,56 @@
     const cards = [...new Set(cardParts)];
     const clash = state.accounts.find((a) => a !== editingAcc && (a.cards || []).some((c) => cards.includes(c)));
     if (clash) { showFieldError(f.cards, `“${clash.name}” already uses ${cards.filter((c) => clash.cards.includes(c)).map((c) => '•' + c).join(', ')}.`); return; }
-    const data = { name, type: f.type.value, currency: f.currency.value || 'SAR', startBalance: sb, color: accColor, cards };
-    if (editingAcc) Object.assign(editingAcc, data);
+    const data = { name, type: f.type.value, currency: f.currency.value || BASE, startBalance: sb, color: accColor, cards };
+    const acc = editingAcc;
+    const oldCur = accCur(acc), newCur = data.currency;
+    const txCount = acc ? state.transactions.filter((t) => touchesAccount(t, acc.id)).length : 0;
+    if (acc && oldCur !== newCur && txCount) {
+      // Existing transactions keep their SAR amounts; only the amounts shown in the account's currency change.
+      if (newCur !== BASE && !rateFor(newCur)) await refreshRates(true);
+      const rate = rateFor(newCur);
+      if (!rate) { showFieldError(f.currency, `Couldn’t get a ${newCur} exchange rate. Connect to the internet and try again.`); return; }
+      $('#accDialog').close();
+      const ok = await confirmAsk(`Switch to ${newCur}?`,
+        `${plural(txCount, 'transaction')} on “${acc.name}” will be shown in ${newCur}` + (newCur !== BASE ? ` at today’s rate (${rateText(rate, newCur)})` : '') +
+        '. Their SAR amounts, and your totals, charts and budgets, don’t change.', `Switch to ${newCur}`, false);
+      if (!ok) { $('#accDialog').showModal(); return; }
+      convertAccountCurrency(acc, newCur, rate);
+    }
+    if (acc) Object.assign(acc, data);
     else state.accounts.push({ id: uid(), ...data });
     $('#accDialog').close();
-    commit(editingAcc ? 'Account updated' : 'Account added');
+    commit(acc ? 'Account updated' : 'Account added');
+    if (newCur !== BASE) updateRates();
+  });
+
+  /** Re-expresses an account's transactions in a new currency at `rate` (units per SAR); SAR amounts stay the same. */
+  function convertAccountCurrency(acc, cur, rate) {
+    const r6 = (n) => Math.round(n * 1e6) / 1e6;
+    for (const t of state.transactions) {
+      if (isTransfer(t)) {
+        if (t.accountId === acc.id) { if (cur === BASE) delete t.fromAmount; else t.fromAmount = round2(t.amount * rate); }
+        if (t.toAccountId === acc.id) { if (cur === BASE) delete t.toAmount; else t.toAmount = round2(t.amount * rate); }
+        if (!touchesAccount(t, acc.id)) continue;
+        const side = t.toAmount ?? t.fromAmount;
+        if (side != null) t.rate = r6(side / t.amount); else delete t.rate;
+      } else if (t.accountId === acc.id) {
+        if (cur === BASE) { delete t.origAmount; delete t.currency; delete t.rate; }
+        else Object.assign(t, { origAmount: round2(t.amount * rate), currency: cur, rate: r6(rate) });
+      }
+    }
+  }
+
+  // Changing the currency converts the starting balance shown in the form, when both rates are known.
+  $('#accForm').addEventListener('change', (e) => {
+    const f = e.currentTarget;
+    if (e.target.name !== 'currency') return;
+    const from = f.dataset.cur || BASE, to = f.currency.value;
+    $('#accStartLabel').textContent = `Starting balance (${to})`;
+    const sb = parseFloat(f.startBalance.value);
+    const rFrom = rateFor(from), rTo = rateFor(to);
+    if (sb && rFrom && rTo) f.startBalance.value = round2((sb / rFrom) * rTo);
+    f.dataset.cur = to;
   });
   $('#accDelete').addEventListener('click', async () => {
     if (!editingAcc) return;
@@ -2120,21 +2316,23 @@
   async function exportCSV() {
     if (!state.transactions.length && !state.accounts.length && !state.budgets.length) { toast('Nothing to export yet.'); return; }
     const q = (v) => { const s = String(v ?? ''); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-    const rows = [['Date', 'Account', 'Account Type', 'Type', 'Category', 'Description', 'Amount (SAR)', 'Signed Amount (SAR)']];
+    const rows = [['Date', 'Account', 'Account Type', 'Type', 'Category', 'Description', 'Amount (SAR)', 'Signed Amount (SAR)', 'Original Amount', 'Original Currency', 'Rate (per SAR)']];
+    // The last three columns hold the amount in the account's own currency, for accounts not in SAR.
+    const orig = (acc, n, t) => (accCur(acc) !== BASE && n != null ? [n.toFixed(2), accCur(acc), t.rate ?? ''] : ['', '', '']);
     state.transactions.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((t) => {
       const a = accById(t.accountId) || {};
       if (isTransfer(t)) {
         // One row per side, so each account's signed amounts still add up to its balance.
         const to = accById(t.toAccountId) || {};
-        rows.push([t.date, a.name || '', ACC_TYPES[a.type] || '', 'Transfer out', '', t.description || `To ${to.name || ''}`, t.amount.toFixed(2), (-t.amount).toFixed(2)]);
-        rows.push([t.date, to.name || '', ACC_TYPES[to.type] || '', 'Transfer in', '', t.description || `From ${a.name || ''}`, t.amount.toFixed(2), t.amount.toFixed(2)]);
+        rows.push([t.date, a.name || '', ACC_TYPES[a.type] || '', 'Transfer out', '', t.description || `To ${to.name || ''}`, t.amount.toFixed(2), (-t.amount).toFixed(2), ...orig(a, t.fromAmount, t)]);
+        rows.push([t.date, to.name || '', ACC_TYPES[to.type] || '', 'Transfer in', '', t.description || `From ${a.name || ''}`, t.amount.toFixed(2), t.amount.toFixed(2), ...orig(to, t.toAmount, t)]);
         return;
       }
-      rows.push([t.date, a.name || '', ACC_TYPES[a.type] || '', t.type === 'income' ? 'Income' : 'Expense', t.category, t.description, t.amount.toFixed(2), (t.type === 'income' ? t.amount : -t.amount).toFixed(2)]);
+      rows.push([t.date, a.name || '', ACC_TYPES[a.type] || '', t.type === 'income' ? 'Income' : 'Expense', t.category, t.description, t.amount.toFixed(2), (t.type === 'income' ? t.amount : -t.amount).toFixed(2), ...orig(a, t.origAmount, t)]);
     });
     rows.push([]);
-    rows.push(['Account', 'Account Type', 'Starting Balance (SAR)', 'Current Balance (SAR)']);
-    state.accounts.forEach((a) => rows.push([a.name, ACC_TYPES[a.type] || a.type, Number(a.startBalance).toFixed(2), balanceOf(a).toFixed(2)]));
+    rows.push(['Account', 'Account Type', 'Currency', 'Starting Balance', 'Current Balance', 'Current Balance (SAR)']);
+    state.accounts.forEach((a) => rows.push([a.name, ACC_TYPES[a.type] || a.type, accCur(a), Number(a.startBalance).toFixed(2), nativeBalance(a).toFixed(2), balanceOf(a).toFixed(2)]));
     if (state.budgets.length) {
       rows.push([]);
       rows.push(['Budget', 'Category', 'Accounts', 'Month', 'Limit (SAR)', 'Spent (SAR)', 'Result']);
@@ -2548,6 +2746,49 @@
     commit('Sample data loaded');
   });
 
+  // ---------- Exchange rate settings ----------
+  function renderRates() {
+    const curs = foreignCurrencies();
+    const box = $('#ratesList');
+    if (!curs.length) {
+      box.innerHTML = '<div class="set-row"><div class="d">All your accounts are in SAR. Edit an account and choose another currency (like LKR) to see its rate here.</div></div>';
+      return;
+    }
+    const fetchedAt = fxCache && fxCache.fetchedAt;
+    box.innerHTML = curs.map((c) => {
+      const info = rateInfo(c);
+      const fetched = fxCache && fxCache.rates && fxCache.rates[c];
+      const desc = info.source === 'manual' ? `Your manual rate${fetched ? ` (fetched rate: ${fmtRate(fetched)})` : ''}`
+        : info.source === 'fetched' ? `Updated ${whenSaved(info.at)} from ${esc(info.from)}`
+        : info.source === 'transaction' ? `From your transaction on ${dateFmt.format(parseISO(info.at))}. Couldn’t fetch a rate yet.`
+        : '<span class="bad">No rate yet. Connect to the internet or enter a rate.</span>';
+      return `<div class="set-row block">
+        <div><div class="t num">${info.rate ? esc(rateText(info.rate, c)) : `${c} · ${esc(CURRENCIES[c] || '')}`}</div><div class="d">${desc}</div></div>
+        <div class="rate-row"><span>Manual: 1 SAR =</span>
+          <input class="num" type="number" inputmode="decimal" step="any" min="0" data-manual-rate="${c}" value="${esc((state.manualRates || {})[c] ?? '')}" placeholder="${fetched ? fmtRate(fetched) : 'e.g. 80'}" aria-label="Manual ${c} rate">
+          <span>${c}</span></div>
+      </div>`;
+    }).join('') + `<div class="set-row">
+        <div class="grow"><div class="d">${fetchedAt ? `Rates last fetched ${whenSaved(fetchedAt)}.` : 'Rates haven’t been fetched yet.'} Rates by <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">ExchangeRate-API</a>.</div></div>
+        <button class="btn sm" id="ratesRefresh">Refresh now</button>
+      </div>`;
+  }
+  $('#ratesList').addEventListener('change', (e) => {
+    const c = e.target.dataset.manualRate;
+    if (!c) return;
+    const v = Number(e.target.value);
+    if (e.target.value === '' || !(v > 0)) delete state.manualRates[c];
+    else state.manualRates[c] = v;
+    commit(e.target.value === '' ? `${c} uses the fetched rate again` : `Manual rate saved: ${rateText(v, c)}`);
+  });
+  $('#ratesList').addEventListener('click', async (e) => {
+    if (e.target.id !== 'ratesRefresh') return;
+    e.target.disabled = true;
+    const ok = await refreshRates(true);
+    renderAll();
+    toast(ok ? 'Exchange rates updated' : 'Couldn’t reach the rate service. Using the saved rates.');
+  });
+
   // ---------- Import from Monefy ----------
   // Parsing, transfer pairing, duplicate detection and the import itself are in monefy-import.js (tested in Node).
   // This is the screen: pick a file → review and map → back up and import → summary with a balance check.
@@ -2664,7 +2905,7 @@
         <div class="imp-list">${p.flagged.map((r) => `
           <div class="imp-row flag">
             <div class="head"><span class="name">${esc(r.account)} · ${esc(r.category)}</span><span class="meta">Line ${r.line} · ${rowWhen(r)}</span></div>
-            <div class="imp-note">${esc(r.amount.toLocaleString('en'))} ${esc(r.currency)} was recorded as ${esc(r.converted.toLocaleString('en'))} SAR${r.description ? ` · “${esc(r.description)}”` : ''}</div>
+            <div class="imp-note">${esc(r.amount.toLocaleString('en'))} ${esc(r.currency)} was recorded as ${esc(r.converted.toLocaleString('en'))} SAR${p.accountCurrencies[r.account] === r.currency ? ` · the ${esc(r.currency)} amount is kept; the SAR amount sets the exchange rate` : ""}${r.description ? ` · “${esc(r.description)}”` : ''}</div>
             <input type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount in SAR" data-fix-line="${r.line}" value="${esc(c.corrections[r.line] ?? '')}" aria-label="Correct SAR amount for line ${r.line}">
           </div>`).join('')}</div></div>`;
     }
@@ -2674,14 +2915,14 @@
         const ch = c.accounts[n];
         const init = p.initial.find((r) => r.other === n);
         const existing = ch.target !== 'new' ? accById(ch.target) : null;
-        const meta = n in p.monefyBalances ? `Monefy balance ${fmt(p.monefyBalances[n])}` : 'Not in this file (from an unmatched transfer)';
+        const meta = n in p.monefyBalances ? `${p.accountCurrencies[n] !== BASE ? `${p.accountCurrencies[n]} account · ` : ""}Monefy balance ${fmtCur(p.monefyBalances[n], p.accountCurrencies[n])}` : 'Not in this file (from an unmatched transfer)';
         return `<div class="imp-row">
           <div class="head"><span class="name">${esc(n)}</span><span class="meta num">${meta}</span></div>
           <div class="ctrl">
             <select data-acc-map="${esc(n)}" aria-label="Where to put ${esc(n)}">${accOptions(ch.target)}</select>
             ${ch.target === 'new' ? `<input type="text" maxlength="40" data-acc-name="${esc(n)}" value="${esc(ch.name ?? n)}" aria-label="New account name">` : '<span></span>'}
           </div>
-          ${init ? `<div class="imp-note">Starting balance ${fmt(init.converted)}${existing ? ` (replaces ${fmt(existing.startBalance)})` : ''}</div>` : ''}
+          ${init ? `<div class="imp-note">Starting balance ${p.accountCurrencies[n] !== BASE && init.currency === p.accountCurrencies[n] ? fmtCur(init.amount, init.currency) : fmt(init.converted)}${existing ? ` (replaces ${fmtCur(existing.startBalance, accCur(existing))})` : ''}${existing && accCur(existing) !== p.accountCurrencies[n] ? ` · this account is in ${accCur(existing)}, so amounts will be converted` : ''}</div>` : ''}
         </div>`;
       }).join('')}</div></div>`;
 
@@ -2752,7 +2993,7 @@
       const id = importedAccountId(nm);
       const acc = id && accById(id);
       if (!acc) return `<tr><td>${esc(nm)}</td><td class="r num">${nm in p.monefyBalances ? fmt(p.monefyBalances[nm]) : '—'}</td><td class="r">—</td><td>Not imported</td></tr>`;
-      const app = balanceOf(acc);
+      const app = nativeBalance(acc), cur = accCur(acc);
       const inFile = nm in p.monefyBalances;
       const monefy = inFile ? p.monefyBalances[nm] : null;
       const ok = inFile && Math.abs(app - monefy) < 0.005;
@@ -2763,15 +3004,16 @@
           const fixed = imp.choices.corrections[r.line];
           notes.push(fixed ? `Line ${r.line}: Monefy counted ${fmt(r.converted)}, you entered ${fmt(Number(fixed))}.` : `Line ${r.line} was skipped (no SAR amount).`);
         });
+        if (p.accountCurrencies[nm] !== cur) notes.push(`Monefy keeps this account in ${p.accountCurrencies[nm]}; here it’s in ${cur}, so the numbers aren’t directly comparable.`);
         if (sharedIds[id] > 1) notes.push('Several Monefy accounts were added to this account.');
         if (state.transactions.some((t) => touchesAccount(t, id) && t.source !== 'monefy')) notes.push('This account also has transactions that weren’t imported.');
         if (p.unmatched.some((u) => u.inFile && u.name === nm && imp.choices.unmatched[u.name].mode === 'account')) notes.push('Includes unmatched transfers imported as transfers.');
       }
       return `<tr>
         <td>${esc(nm)}${acc.name !== nm ? `<div class="imp-note">→ ${esc(acc.name)}</div>` : ''}${notes.map((x) => `<div class="imp-note">${esc(x)}</div>`).join('')}</td>
-        <td class="r num">${inFile ? fmt(monefy) : '—'}</td>
-        <td class="r num">${fmt(app)}</td>
-        <td class="${!inFile ? '' : ok ? 'ok' : 'diff'}">${!inFile ? 'New' : ok ? '✓' : `${app - monefy > 0 ? '+' : '−'}${fmt(Math.abs(app - monefy))}`}</td>
+        <td class="r num">${inFile ? fmtCur(monefy, cur) : '—'}</td>
+        <td class="r num">${fmtCur(app, cur)}</td>
+        <td class="${!inFile ? '' : ok ? 'ok' : 'diff'}">${!inFile ? 'New' : ok ? '✓' : `${app - monefy > 0 ? '+' : '−'}${fmtCur(Math.abs(app - monefy), cur)}`}</td>
       </tr>`;
     }).join('');
 
@@ -2812,6 +3054,7 @@
       imp.summary = MI.applyImport(state, p, c, {
         uid,
         color: (i) => ACCOUNT_SWATCHES[i % ACCOUNT_SWATCHES.length],
+        rateFor,
         accountType: (name) => (/saving|emergency|invest/i.test(name) ? 'savings' : /cash|wallet/i.test(name) ? 'cash' : 'checking')
       });
     } catch (e) {
@@ -2833,6 +3076,7 @@
     ui.filters.account = 'all';
     syncFilterInputs();
     commit(); // budgets, charts, totals and the transaction list all recalculate here
+    updateRates(); // new accounts may be in another currency
     renderImport();
     renderBackupRow();
     $('#impBody').scrollTop = 0;
@@ -3227,7 +3471,10 @@
     commit(state.budgets.length ? `New month: your budgets have reset for ${monthKeyLabel(currentMonth)}.` : '');
   }
   setInterval(checkMonthRollover, 60 * 1000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthRollover(); refreshNotifPerm(); refreshPending(); refreshDetect(); } });
+  // Exchange rates: fetched at most once a day, and only when an account uses another currency.
+  const updateRates = (force) => refreshRates(force).then((ok) => { if (ok) renderAll(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthRollover(); refreshNotifPerm(); refreshPending(); refreshDetect(); updateRates(); } });
+  updateRates();
 
   renderBackupRow();
   refreshDetect();

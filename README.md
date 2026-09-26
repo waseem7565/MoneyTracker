@@ -55,6 +55,14 @@ The app can detect card purchases in bank SMS, and optionally in bank-app notifi
 - Only messages from the senders and apps you choose are read. One-time passwords and verification codes are never processed. Messages never leave the phone, and only the extracted details (amount, currency, merchant, card's last 4 digits, date/time) are stored.
 - **Adding a bank:** parsing rules are in `android/app/src/main/assets/purchase_rules.json`. The generic rules handle most Arabic and English alerts. If your bank's format is parsed wrongly, add an entry to `banks` with its sender IDs and a regular expression that uses named groups (`amount`, `currency`, `merchant`, `card`, `date`, `time`), then add a sample message to `android/app/src/test/.../PurchaseParserTest.java` and run `./gradlew testDebugUnitTest` in `android/`. You can also try a message on the phone with **Test with a sample message** in settings.
 
+## Currencies
+
+The app works in SAR, but each account can have its own currency (Accounts → Edit → Currency; the list is `CURRENCIES` in `index.html`).
+
+- A transaction's `amount` is always SAR, so totals, charts, budgets and alerts never convert. On other-currency accounts the original amount and the rate used are saved too (`origAmount`/`currency`/`rate`, or `fromAmount`/`toAmount`/`rate` for transfers), so past transactions don't change when the rate does.
+- Rates (units per 1 SAR) come from a manual rate in **Accounts → Exchange rates**, else a free daily fetch (open.er-api.com, with the fawazahmed0 currency API as a fallback) cached for offline use, else the latest transaction's rate. Rates are only fetched when an account uses another currency.
+- Account balances show in the account's currency with the SAR equivalent at today's rate; the total balance uses that SAR value.
+
 ## Import from Monefy
 
 **Accounts → Import & backup → Import…** reads a Monefy CSV export. It shows a preview, lets you map accounts, categories and unmatched transfers, backs up your current data, then imports and compares each account's balance with Monefy's.
