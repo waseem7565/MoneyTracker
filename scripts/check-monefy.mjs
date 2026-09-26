@@ -1,11 +1,14 @@
 // Dry-runs the Monefy importer on a local export and prints what would be imported and the resulting balances.
-// Usage: node scripts/check-monefy.mjs [path]   (default: import-data/monefy.csv, which is git-ignored)
+// Usage: node scripts/check-monefy.mjs [path] [line=SAR ...]   (default path: import-data/monefy.csv, which is git-ignored)
+// e.g. `node scripts/check-monefy.mjs 174=1135` enters 1135 SAR for flagged line 174.
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const M = require('../monefy-import.js');
-const file = process.argv[2] || new URL('../import-data/monefy.csv', import.meta.url);
+const args = process.argv.slice(2);
+const fixes = Object.fromEntries(args.filter((a) => /^\d+=/.test(a)).map((a) => a.split('=')));
+const file = args.find((a) => !/^\d+=/.test(a)) || new URL('../import-data/monefy.csv', import.meta.url);
 const plan = M.buildPlan(M.parseMonefy(readFileSync(file, 'utf8')));
 
 console.log(`Rows: ${plan.rows.length}, parse errors: ${plan.errors.length}`);
@@ -18,6 +21,8 @@ console.log('Flagged rows:', plan.flagged.map((r) => `line ${r.line}: ${r.amount
 
 const state = { accounts: [], transactions: [], categories: ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Other'] };
 const choices = M.defaultChoices(plan, state);
+Object.assign(choices.corrections, fixes);
+console.log('Account currencies:', Object.entries(plan.accountCurrencies).filter(([, c]) => c !== 'SAR').map(([n, c]) => `${n}: ${c}`).join(', ') || 'all SAR');
 console.log('Category choices:', Object.entries(choices.categories).map(([k, v]) => `${k} → ${v.action === 'merge' ? 'merge into ' + v.into : v.action + ' ' + v.name}`).join(', '));
 let n = 0;
 const helpers = { uid: () => `id${++n}`, color: () => '#888', accountType: () => 'checking' };

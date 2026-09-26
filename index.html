@@ -813,8 +813,9 @@
             <option value="cash">Cash</option>
           </select>
         </label>
-        <label class="field"><span>Starting balance (SAR)</span><input class="num" type="number" name="startBalance" step="0.01" inputmode="decimal" placeholder="0.00"></label>
+        <label class="field"><span>Currency</span><select name="currency"></select></label>
       </div>
+      <label class="field"><span id="accStartLabel">Starting balance (SAR)</span><input class="num" type="number" name="startBalance" step="0.01" inputmode="decimal" placeholder="0.00"></label>
       <label class="field"><span>Card or account last 4 digits (optional)</span>
         <input type="text" name="cards" inputmode="numeric" maxlength="60" placeholder="e.g. 1234, 5678" autocomplete="off">
       </label>
@@ -1021,7 +1022,8 @@
           if (!s.categories.includes('Other')) s.categories.push('Other');
           s.categoryColors = s.categoryColors && typeof s.categoryColors === 'object' ? s.categoryColors : {};
           s.merchantCategories = s.merchantCategories && typeof s.merchantCategories === 'object' ? s.merchantCategories : {};
-          s.accounts.forEach((a) => { if (!Array.isArray(a.cards)) a.cards = []; });
+          s.accounts.forEach((a) => { if (!Array.isArray(a.cards)) a.cards = []; if (!a.currency) a.currency = 'SAR'; });
+          s.manualRates = s.manualRates && typeof s.manualRates === 'object' ? s.manualRates : {};
           s.budgets = Array.isArray(s.budgets) ? s.budgets : [];
           s.notifications = Array.isArray(s.notifications) ? s.notifications : [];
           if (!s.budgetsSeeded) {
@@ -1035,7 +1037,7 @@
       }
     } catch (e) { storageOk = false; }
     // First visit: start with sample data.
-    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, merchantCategories: {}, budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
+    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, merchantCategories: {}, manualRates: {}, budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
   }
 
   function save() {
@@ -1121,23 +1123,102 @@
 
   // A transaction is { id, type: 'expense' | 'income' | 'transfer', amount (> 0), date, accountId, category, description }.
   // Transfers move money from accountId to toAccountId, have no category, and never count as spending or income.
+  // `amount` is always SAR, so totals, charts and budgets never convert. On accounts in another currency the original
+  // amount and the rate used (units per 1 SAR) are saved too, so past transactions don't change when the rate does:
+  // expenses/income get { origAmount, currency, rate }; transfers get fromAmount / toAmount for a non-SAR side, and rate.
   const isTransfer = (t) => t.type === 'transfer';
   const touchesAccount = (t, id) => t.accountId === id || (isTransfer(t) && t.toAccountId === id);
 
-  /** How much a transaction changes an account's balance (0 if it doesn't involve the account). */
+  /** How much a transaction changes an account's balance, in the account's own currency (0 if it isn't involved). */
   function effectOn(t, accId) {
-    if (isTransfer(t)) return (t.toAccountId === accId ? t.amount : 0) - (t.accountId === accId ? t.amount : 0);
+    if (isTransfer(t)) return (t.toAccountId === accId ? t.toAmount ?? t.amount : 0) - (t.accountId === accId ? t.fromAmount ?? t.amount : 0);
     if (t.accountId !== accId) return 0;
-    return t.type === 'income' ? t.amount : -t.amount;
+    return (t.type === 'income' ? 1 : -1) * (t.origAmount ?? t.amount);
   }
 
-  function balanceOf(acc, uptoISO) {
+  /** An account's balance in its own currency. */
+  function nativeBalance(acc, uptoISO) {
     let b = Number(acc.startBalance) || 0;
     for (const t of state.transactions) {
       if (uptoISO && t.date > uptoISO) continue;
       b += effectOn(t, acc.id);
     }
     return round2(b);
+  }
+
+  /** An account's balance in SAR, converting other currencies at today's rate (0 if no rate is known yet). */
+  function balanceOf(acc, uptoISO) {
+    const sar = toSar(nativeBalance(acc, uptoISO), accCur(acc));
+    return sar === null ? 0 : round2(sar);
+  }
+
+  // ---------- Currencies & exchange rates ----------
+  // The app works in SAR. A rate is "units of the currency per 1 SAR" (e.g. 1 SAR = 80.3 LKR). The rate in use is the
+  // manual rate from settings, else the one fetched once a day (cached for offline use), else the rate saved on the
+  // latest transaction in that currency.
+  const BASE = 'SAR';
+  const CURRENCIES = {
+    SAR: 'Saudi riyal', LKR: 'Sri Lankan rupee', USD: 'US dollar', EUR: 'Euro', GBP: 'British pound', AED: 'UAE dirham',
+    KWD: 'Kuwaiti dinar', BHD: 'Bahraini dinar', QAR: 'Qatari riyal', OMR: 'Omani rial', INR: 'Indian rupee',
+    PKR: 'Pakistani rupee', BDT: 'Bangladeshi taka', PHP: 'Philippine peso', EGP: 'Egyptian pound'
+  };
+  const RATES_KEY = 'moneytracker.rates';
+  const accCur = (a) => (a && a.currency) || BASE;
+  const curFormats = {};
+  const fmtCur = (n, cur = BASE) => (cur === BASE ? fmt(n)
+    : (curFormats[cur] ||= new Intl.NumberFormat('en', { style: 'currency', currency: cur, currencyDisplay: 'code' })).format(Math.round(n * 100) / 100 || 0));
+  const fmtRate = (r) => String(r >= 100 ? +r.toFixed(2) : +r.toPrecision(4));
+  const rateText = (r, cur) => `1 SAR = ${fmtRate(r)} ${cur}`;
+
+  let fxCache = (() => { try { return JSON.parse(localStorage.getItem(RATES_KEY) || 'null'); } catch (e) { return null; } })();
+
+  function rateInfo(cur) {
+    if (cur === BASE) return { rate: 1, source: 'base' };
+    const manual = Number((state.manualRates || {})[cur]);
+    if (manual > 0) return { rate: manual, source: 'manual' };
+    const fetched = fxCache && fxCache.rates && Number(fxCache.rates[cur]);
+    if (fetched > 0) return { rate: fetched, source: 'fetched', at: fxCache.fetchedAt, from: fxCache.source };
+    const used = (t) => t.rate > 0 && (t.currency === cur || (isTransfer(t) && [accCur(accById(t.accountId)), accCur(accById(t.toAccountId))].includes(cur)));
+    const last = state.transactions.filter(used).sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (last) return { rate: last.rate, source: 'transaction', at: last.date };
+    return { rate: null, source: 'none' };
+  }
+  const rateFor = (cur) => rateInfo(cur).rate;
+  const toSar = (n, cur) => { const r = rateFor(cur); return r ? n / r : null; };
+  const foreignCurrencies = () => [...new Set(state.accounts.map(accCur).filter((c) => c !== BASE))];
+
+  // Free, key-less daily rates. The second source is only used if the first can't be reached.
+  const RATE_SOURCES = [
+    { name: 'ExchangeRate-API', url: 'https://open.er-api.com/v6/latest/SAR', read: (j) => (j.result === 'success' ? j.rates : null) },
+    { name: 'fawazahmed0 currency API', url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/sar.json',
+      read: (j) => (j.sar ? Object.fromEntries(Object.entries(j.sar).map(([k, v]) => [k.toUpperCase(), v])) : null) }
+  ];
+  let fxFetching = null;
+  /** Fetches rates at most once a day (or now, if forced). Only runs when an account uses another currency. */
+  async function refreshRates(force = false) {
+    if (!force && (!foreignCurrencies().length || (fxCache && Date.now() - fxCache.fetchedAt < 864e5))) return false;
+    if (fxFetching) return fxFetching;
+    fxFetching = (async () => {
+      for (const src of RATE_SOURCES) {
+        try {
+          const ctl = new AbortController();
+          const timer = setTimeout(() => ctl.abort(), 10000);
+          const res = await fetch(src.url, { signal: ctl.signal, cache: 'no-store' });
+          clearTimeout(timer);
+          if (!res.ok) continue;
+          const all = src.read(await res.json());
+          if (!all) continue;
+          const rates = {};
+          Object.keys(CURRENCIES).forEach((c) => { if (Number(all[c]) > 0) rates[c] = Number(all[c]); });
+          if (!Object.keys(rates).length) continue;
+          fxCache = { rates, fetchedAt: Date.now(), source: src.name };
+          try { localStorage.setItem(RATES_KEY, JSON.stringify(fxCache)); } catch (e) {}
+          return true;
+        } catch (e) { /* offline or unreachable: try the next source, and keep the cached rates otherwise */ }
+      }
+      return false;
+    })();
+    try { return await fxFetching; } finally { fxFetching = null; }
   }
 
   // A color picked in Manage categories wins; otherwise the category gets its palette slot by position.
@@ -1984,6 +2065,9 @@
     f.name.value = acc ? acc.name : '';
     f.type.value = acc ? acc.type : 'checking';
     f.startBalance.value = acc ? acc.startBalance : '';
+    f.currency.innerHTML = Object.entries(CURRENCIES).map(([c, n]) => `<option value="${c}">${c} · ${esc(n)}</option>`).join('');
+    f.currency.value = accCur(acc);
+    $('#accStartLabel').textContent = `Starting balance (${f.currency.value})`;
     f.cards.value = acc && acc.cards ? acc.cards.join(', ') : '';
     const used = state.accounts.map((a) => a.color.toLowerCase());
     accColor = acc ? acc.color : (ACCOUNT_SWATCHES.find((c) => !used.includes(c)) || ACCOUNT_SWATCHES[0]);
@@ -2010,7 +2094,7 @@
     const cards = [...new Set(cardParts)];
     const clash = state.accounts.find((a) => a !== editingAcc && (a.cards || []).some((c) => cards.includes(c)));
     if (clash) { showFieldError(f.cards, `“${clash.name}” already uses ${cards.filter((c) => clash.cards.includes(c)).map((c) => '•' + c).join(', ')}.`); return; }
-    const data = { name, type: f.type.value, startBalance: sb, color: accColor, cards };
+    const data = { name, type: f.type.value, currency: f.currency.value || 'SAR', startBalance: sb, color: accColor, cards };
     if (editingAcc) Object.assign(editingAcc, data);
     else state.accounts.push({ id: uid(), ...data });
     $('#accDialog').close();

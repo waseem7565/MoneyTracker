@@ -157,10 +157,22 @@
     }
     categories.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
-    // What Monefy shows for each account: its starting balance plus every row in it.
+    // Each account's currency: the original currency most of its rows use (Monefy records rows in the account's currency).
+    const accountCurrencies = {};
+    for (const n of accountNames) {
+      const counts = {};
+      rows.filter((r) => r.account === n).forEach((r) => { const c = r.currency || BASE_CURRENCY; counts[c] = (counts[c] || 0) + 1; });
+      accountCurrencies[n] = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || BASE_CURRENCY;
+    }
+
+    // What Monefy shows for each account, in the account's own currency: its starting balance plus every row in it.
     const monefyBalances = {};
     accountNames.forEach((n) => { monefyBalances[n] = 0; });
-    rows.forEach((r) => { monefyBalances[r.account] = round2((monefyBalances[r.account] || 0) + r.converted); });
+    rows.forEach((r) => {
+      const cur = accountCurrencies[r.account];
+      const v = cur !== BASE_CURRENCY && r.currency === cur ? r.amount : r.converted;
+      monefyBalances[r.account] = round2((monefyBalances[r.account] || 0) + v);
+    });
 
     const dates = rows.map((r) => r.date).sort();
     return {
@@ -169,7 +181,7 @@
       transfers, unmatched, regular, categories,
       flagged: rows.filter((r) => r.flagged),
       dateRange: dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null,
-      monefyBalances
+      accountCurrencies, monefyBalances
     };
   }
 
@@ -213,7 +225,10 @@
   // ---------- Apply ----------
 
   /**
-   * Adds the planned rows to `state` (mutated in place). `helpers`: { uid(), color(i), accountType(name) }.
+   * Adds the planned rows to `state` (mutated in place). `helpers`: { uid(), color(i), accountType(name), rateFor(currency)? }.
+   * Transaction `amount` is always SAR. For accounts in another currency the original amount is kept too
+   * (origAmount / currency / rate for expenses and income, fromAmount / toAmount / rate for transfers), with the
+   * rate (units per 1 SAR) worked out from Monefy's converted SAR amount.
    * Returns a summary: { imported: {...counts}, skipped: [{ line, reason }], failed: [{ line, reason }], accountIds: { monefyName: appId } }.
    */
   function applyImport(state, plan, choices, helpers) {
@@ -239,7 +254,8 @@
       const newName = String(choice.name || name).trim() || name;
       const clash = state.accounts.find((a) => catKey(a.name) === catKey(newName));
       if (clash) return (summary.accountIds[name] = clash.id);
-      const acc = { id: helpers.uid(), name: newName, type: helpers.accountType(newName), startBalance: 0, color: helpers.color(colorIndex++), cards: [], importKeys: [] };
+      const currency = (plan.accountCurrencies && plan.accountCurrencies[name]) || BASE_CURRENCY;
+      const acc = { id: helpers.uid(), name: newName, type: helpers.accountType(newName), currency, startBalance: 0, color: helpers.color(colorIndex++), cards: [], importKeys: [] };
       state.accounts.push(acc);
       summary.imported.accounts++;
       return (summary.accountIds[name] = acc.id);
@@ -255,30 +271,58 @@
       return name;
     };
 
-    // Starting balances
+    const accountById = (id) => state.accounts.find((a) => a.id === id);
+    const currencyOf = (acc) => (acc && acc.currency) || BASE_CURRENCY;
+    // The amount in the account's own currency (positive), or null for SAR accounts. `row` may be null (the other
+    // side of an unmatched transfer); then, or when the row's currency differs, the SAR amount is converted.
+    const nativeAmount = (row, acc, sar) => {
+      const cur = currencyOf(acc);
+      if (cur === BASE_CURRENCY) return null;
+      if (row && row.currency === cur && !Number.isNaN(row.amount)) return round2(Math.abs(row.amount));
+      const rate = helpers.rateFor && helpers.rateFor(cur);
+      return rate ? round2(Math.abs(sar) * rate) : null;
+    };
+    const rateOf = (native, sar) => (native && sar ? Math.round((native / Math.abs(sar)) * 1e6) / 1e6 : undefined);
+
+    // Starting balances (in the account's currency; an SAR amount is only needed for SAR accounts)
     for (const r of plan.initial) {
       if (isDup(r)) { dup(r); continue; }
-      const amt = amountOf(r);
-      if (Number.isNaN(amt)) { needsAmount(r); continue; }
-      const id = accountId(r.other);
-      const acc = state.accounts.find((a) => a.id === id);
-      acc.startBalance = round2(amt);
+      const acc = accountById(accountId(r.other));
+      const native = currencyOf(acc) !== BASE_CURRENCY && r.currency === currencyOf(acc) ? r.amount : null;
+      let value = native;
+      if (value === null) {
+        const sar = amountOf(r);
+        if (Number.isNaN(sar)) { needsAmount(r); continue; }
+        const conv = nativeAmount(null, acc, sar);
+        value = conv === null ? sar : Math.sign(sar) * conv;
+      }
+      acc.startBalance = round2(value);
       acc.importKeys = (acc.importKeys || []).concat(r.key);
       summary.imported.startBalances++;
     }
 
-    const addTransfer = (rows, fromName, toName, amount, date, description) => {
+    // fromRow / toRow: the file row recorded in the sending / receiving account, if there is one.
+    const addTransfer = (rows, fromName, toName, amount, date, description, fromRow, toRow) => {
       const from = accountId(fromName), to = accountId(toName);
       if (from === to) { rows.forEach((r) => summary.skipped.push({ line: r.line, reason: 'Both sides of the transfer map to the same account' })); return; }
-      state.transactions.push({ id: helpers.uid(), type: 'transfer', amount: round2(Math.abs(amount)), date, accountId: from, toAccountId: to, category: '', description, source: 'monefy', importKeys: rows.map((r) => r.key) });
+      const t = { id: helpers.uid(), type: 'transfer', amount: round2(Math.abs(amount)), date, accountId: from, toAccountId: to, category: '', description, source: 'monefy', importKeys: rows.map((r) => r.key) };
+      const fromAmount = nativeAmount(fromRow, accountById(from), amount);
+      const toAmount = nativeAmount(toRow, accountById(to), amount);
+      if (fromAmount !== null) { t.fromAmount = fromAmount; t.rate = rateOf(fromAmount, amount); }
+      if (toAmount !== null) { t.toAmount = toAmount; t.rate = rateOf(toAmount, amount); }
+      state.transactions.push(t);
       summary.imported.transfers++;
     };
     const addRegular = (r, amount, category, description) => {
       if (same(amount, 0)) { summary.failed.push({ line: r.line, reason: 'Amount is zero.' }); return; }
-      state.transactions.push({
+      const id = accountId(r.account);
+      const t = {
         id: helpers.uid(), type: amount < 0 ? 'expense' : 'income', amount: round2(Math.abs(amount)), date: r.date,
-        accountId: accountId(r.account), category, description, source: 'monefy', importKeys: [r.key]
-      });
+        accountId: id, category, description, source: 'monefy', importKeys: [r.key]
+      };
+      const native = nativeAmount(r, accountById(id), amount);
+      if (native !== null) Object.assign(t, { origAmount: native, currency: currencyOf(accountById(id)), rate: rateOf(native, amount) });
+      state.transactions.push(t);
       summary.imported.transactions++;
     };
 
@@ -287,7 +331,7 @@
       if (isDup(t.out, t.in)) { dup(t.out); dup(t.in); continue; }
       const amt = t.out.flagged ? amountOf(t.out) : t.in.flagged ? amountOf(t.in) : t.out.converted;
       if (Number.isNaN(amt)) { needsAmount(t.out.flagged ? t.out : t.in); continue; }
-      addTransfer([t.out, t.in], t.out.account, t.in.account, amt, t.out.date, t.out.description || t.in.description);
+      addTransfer([t.out, t.in], t.out.account, t.in.account, amt, t.out.date, t.out.description || t.in.description, t.out, t.in);
     }
 
     // Unmatched transfers: to/from an account that's created (or chosen), or plain expense/income
@@ -298,8 +342,8 @@
         const amt = amountOf(r);
         if (Number.isNaN(amt)) { needsAmount(r); continue; }
         if (choice.mode === 'account') {
-          if (r.kind === 'out') addTransfer([r], r.account, g.name, amt, r.date, r.description);
-          else addTransfer([r], g.name, r.account, amt, r.date, r.description);
+          if (r.kind === 'out') addTransfer([r], r.account, g.name, amt, r.date, r.description, r, null);
+          else addTransfer([r], g.name, r.account, amt, r.date, r.description, null, r);
         } else {
           addRegular(r, amt, categoryName(choice.category || 'Other'), r.description || `${r.kind === 'out' ? 'To' : 'From'} ${g.name}`);
         }
@@ -319,13 +363,13 @@
     return summary;
   }
 
-  /** Balance an account shows in the app: starting balance plus every transaction and transfer that touches it. */
+  /** Balance an account shows in the app, in its own currency: starting balance plus every transaction and transfer. */
   function accountBalance(state, id) {
     const acc = state.accounts.find((a) => a.id === id);
     let b = Number(acc && acc.startBalance) || 0;
     for (const t of state.transactions) {
-      if (t.type === 'transfer') b += (t.toAccountId === id ? t.amount : 0) - (t.accountId === id ? t.amount : 0);
-      else if (t.accountId === id) b += t.type === 'income' ? t.amount : -t.amount;
+      if (t.type === 'transfer') b += (t.toAccountId === id ? t.toAmount ?? t.amount : 0) - (t.accountId === id ? t.fromAmount ?? t.amount : 0);
+      else if (t.accountId === id) b += (t.type === 'income' ? 1 : -1) * (t.origAmount ?? t.amount);
     }
     return round2(b);
   }

@@ -127,6 +127,38 @@ test('merged categories and existing-account mapping', () => {
   assert.ok(state.transactions.filter((t) => t.accountId === 'mine').length > 0);
 });
 
+test('LKR accounts keep their LKR amounts, with the rate worked out from the SAR amount', () => {
+  const csv = [
+    'date,account,category,amount,currency,converted amount,currency,description',
+    "10/06/2026,Home LK,Initial balance 'Home LK',\"50,000\",LKR,625,SAR,",
+    "10/06/2026,Bank,Initial balance 'Bank',\"2,000\",SAR,\"2,000\",SAR,",
+    '11/06/2026,Home LK,Food,"-8,000",LKR,-100,SAR,Rice',
+    "12/06/2026,Bank,To 'Home LK',\"-1,000\",SAR,\"-1,000\",SAR,",
+    "12/06/2026,Home LK,From 'Bank',\"80,000\",LKR,\"1,000\",SAR,",
+    '13/06/2026,Home LK,Deposits,"5,000",LKR,"5,000",SAR,Refund'
+  ].join('\n');
+  const plan = M.buildPlan(M.parseMonefy(csv));
+  assert.deepEqual(plan.accountCurrencies, { 'Home LK': 'LKR', Bank: 'SAR' });
+  assert.equal(plan.monefyBalances['Home LK'], 50000 - 8000 + 80000 + 5000); // in LKR, like Monefy shows it
+  assert.deepEqual(plan.flagged.map((r) => r.line), [7]); // converted amount equals the LKR amount
+
+  const state = freshState();
+  const choices = M.defaultChoices(plan, state);
+  choices.corrections[7] = '62.5';
+  const s = M.applyImport(state, plan, choices, helpers());
+  const lk = state.accounts.find((a) => a.id === s.accountIds['Home LK']);
+  assert.equal(lk.currency, 'LKR');
+  assert.equal(lk.startBalance, 50000);
+  const rice = state.transactions.find((t) => t.description === 'Rice');
+  assert.deepEqual([rice.amount, rice.origAmount, rice.currency, rice.rate], [100, 8000, 'LKR', 80]);
+  const refund = state.transactions.find((t) => t.description === 'Refund');
+  assert.deepEqual([refund.type, refund.amount, refund.origAmount, refund.rate], ['income', 62.5, 5000, 80]);
+  const tr = state.transactions.find((t) => t.type === 'transfer');
+  assert.deepEqual([tr.amount, tr.fromAmount, tr.toAmount, tr.rate], [1000, undefined, 80000, 80]);
+  assert.equal(M.accountBalance(state, lk.id), plan.monefyBalances['Home LK']);
+  assert.equal(M.accountBalance(state, s.accountIds.Bank), 1000);
+});
+
 test('rejects files that are not Monefy exports', () => {
   const r = M.parseMonefy('Date,Description,Amount\n2026-01-01,x,1');
   assert.equal(r.rows.length, 0);
