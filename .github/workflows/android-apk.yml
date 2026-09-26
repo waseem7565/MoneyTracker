@@ -16,6 +16,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # SHA-256 of the debug certificate the app on the phone is signed with (the PC's debug.keystore). Not a secret.
+      EXPECTED_CERT_SHA256: 1f6b527d9ac505fc105800ac8936e8d47adc577b41d4f524a261ad613e0ac6dd
     steps:
       - uses: actions/checkout@v4
 
@@ -39,21 +42,44 @@ jobs:
 
       # Sign with the same debug key as the PC builds, so this APK installs over the app already on the phone.
       # Without it, Android refuses the update, and uninstalling to get around that deletes all the app's data.
-      # The key comes from the DEBUG_KEYSTORE_BASE64 repository secret (base64 of ~/.android/debug.keystore).
+      # The key comes from the DEBUG_KEYSTORE_BASE64 repository secret (base64 of %USERPROFILE%\.android\debug.keystore).
+      # It's decoded to an explicit path that android/debug-signing.gradle signs with (DEBUG_KEYSTORE_FILE), rather than
+      # relying on where the Android Gradle plugin looks for its default debug keystore on the build server.
       - name: Use the shared debug signing key
         env:
           DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$DEBUG_KEYSTORE_BASE64" ]; then
-            echo "::warning::DEBUG_KEYSTORE_BASE64 isn't set. This APK can't update the app on your phone; do NOT uninstall the app to install it (that deletes your data)."
-            exit 0
+            echo "::error::The DEBUG_KEYSTORE_BASE64 secret isn't set, so this APK couldn't update the app on your phone."
+            exit 1
           fi
-          mkdir -p ~/.android
-          echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          ks="$RUNNER_TEMP/debug.keystore"
+          printf '%s' "$DEBUG_KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$ks"
+          echo "DEBUG_KEYSTORE_FILE=$ks" >> "$GITHUB_ENV"
+          echo "Keystore certificate:"
+          keytool -list -v -keystore "$ks" -storepass android -alias androiddebugkey | grep -E 'Owner|SHA256'
+          actual=$(keytool -list -v -keystore "$ks" -storepass android -alias androiddebugkey | grep 'SHA256:' | sed 's/.*SHA256: *//; s/://g' | tr 'A-F' 'a-f')
+          if [ "$actual" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::The keystore in DEBUG_KEYSTORE_BASE64 has certificate $actual, but the app on the phone is signed with $EXPECTED_CERT_SHA256. Update the secret with the PC's debug.keystore."
+            exit 1
+          fi
 
       - name: Build debug APKs (Expense Tracker and Add Transaction)
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # Never upload an APK that can't install over the phone's app.
+      - name: Check the APKs are signed with the phone's key
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          for apk in android/app/build/outputs/apk/debug/app-debug.apk android/quickadd/build/outputs/apk/debug/quickadd-debug.apk; do
+            actual=$("$apksigner" verify --print-certs "$apk" | grep -m1 'SHA-256 digest' | sed 's/.*: *//')
+            echo "$apk: $actual"
+            if [ "$actual" != "$EXPECTED_CERT_SHA256" ]; then
+              echo "::error::$apk is signed with $actual, not the phone's key $EXPECTED_CERT_SHA256."
+              exit 1
+            fi
+          done
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4

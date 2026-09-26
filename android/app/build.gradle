@@ -24,6 +24,8 @@ android {
     }
 }
 
+apply from: '../debug-signing.gradle'
+
 repositories {
     flatDir{
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
