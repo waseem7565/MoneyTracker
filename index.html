@@ -524,7 +524,11 @@
     .ad-tiles .tile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 11px 14px; }
     .ad-tiles .tile-value, .ad-tiles .tile:first-child .tile-value { font-size: 17px; margin: 0; }
   }
-  #adRangeSeg button { padding: 6px 10px; }
+  /* Period tabs: full width, four equal centered tabs on one line (same look as the Insights tabs). */
+  .controls.stacked.ad-period .seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+  .controls.stacked.ad-period .seg button { padding: 6px 4px; min-width: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 420px) { .controls.stacked.ad-period .seg button { font-size: 13px; } }
+  @media (max-width: 360px) { .controls.stacked.ad-period .seg button { font-size: 12px; padding: 6px 1px; letter-spacing: -.01em; } }
   .ad-filters { grid-template-columns: 2fr 1fr 1fr; }
   @media (max-width: 720px) { .ad-filters { grid-template-columns: 1fr 1fr; } }
   .ad-day { margin-bottom: 10px; overflow: hidden; }
@@ -841,7 +845,7 @@
       <div class="tile-sub num" id="adBalanceSar"></div>
     </div>
 
-    <div class="controls">
+    <div class="controls stacked ad-period">
       <h2 id="adPeriodLabel">This month</h2>
       <div class="seg" id="adRangeSeg" role="group" aria-label="Period">
         <button data-ad-range="month" aria-pressed="true">This month</button>
@@ -2645,9 +2649,11 @@
   $('#adAdd').addEventListener('click', () => openTxDialog(null, ui.accountId));
   $('#adRangeSeg').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-ad-range]');
-    if (!b) return;
+    if (!b || b.dataset.adRange === ui.accRange) return;
     ui.accRange = b.dataset.adRange;
+    const y = window.scrollY;
     renderAccountDetails();
+    window.scrollTo({ top: y }); // switching periods only updates the content below; the page stays where it was
   });
   const refreshAccountList = () => {
     const acc = accById(ui.accountId);
