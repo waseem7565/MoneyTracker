@@ -2871,6 +2871,12 @@
     renderImportSummary(body, foot);
   }
 
+  // Flagged rows that still need a SAR amount: ones imported earlier are skipped as duplicates, so they don't.
+  function flaggedToFix() {
+    const done = MI.importedKeys(state);
+    return imp.plan.flagged.filter((r) => !done.has(r.key));
+  }
+
   // Monefy accounts plus unmatched-transfer targets that will become accounts.
   const importAccountNames = () => imp.plan.accounts.concat(imp.plan.unmatched.filter((u) => !u.inFile && imp.choices.unmatched[u.name].mode === 'account').map((u) => u.name));
 
@@ -2882,15 +2888,20 @@
     const accOptions = (sel) => `<option value="new" ${sel === 'new' ? 'selected' : ''}>Create new account</option>` +
       state.accounts.map((a) => `<option value="${esc(a.id)}" ${sel === a.id ? 'selected' : ''}>Add to “${esc(a.name)}”</option>`).join('');
     const catOptions = (sel) => state.categories.map((x) => `<option ${x === sel ? 'selected' : ''}>${esc(x)}</option>`).join('');
+    const done = MI.importedKeys(state);
+    const already = p.rows.filter((r) => done.has(r.key)).length;
+    const flagged = flaggedToFix();
 
     let html = `<p class="imp-note" style="margin:0">${esc(imp.fileName)}</p>
+      ${already ? `<div class="detect-note">${already === p.rows.length ? `<strong>Everything in this file is already imported.</strong> Importing again changes nothing.`
+        : `<strong>${plural(already, 'row')} ${already === 1 ? 'was' : 'were'} already imported</strong> and will be skipped. ${plural(p.rows.length - already, 'new row')} will be imported.`}</div>` : ''}
       <div class="imp-stats">
         ${stat(p.regular.length.toLocaleString('en'), 'transactions')}
         ${stat(p.transfers.length, 'transfers')}
         ${stat(p.accounts.length, 'accounts')}
         ${stat(p.categories.length, 'categories')}
         ${stat(p.dateRange ? `${shortDateFmt.format(parseISO(p.dateRange.from))} – ${shortDateFmt.format(parseISO(p.dateRange.to))}` : '—', p.dateRange ? `${parseISO(p.dateRange.from).getFullYear()}${p.dateRange.from.slice(0, 4) !== p.dateRange.to.slice(0, 4) ? '–' + p.dateRange.to.slice(0, 4) : ''}` : 'dates')}
-        ${stat(p.flagged.length, p.flagged.length === 1 ? 'flagged row' : 'flagged rows')}
+        ${stat(flagged.length, flagged.length === 1 ? 'flagged row' : 'flagged rows')}
       </div>
       <p class="imp-note" style="margin:0">Also: ${plural(p.initial.length, 'starting balance')}, ${plural(unmatchedRows, 'unmatched transfer row')}${p.errors.length ? `, <span class="warn">${plural(p.errors.length, 'unreadable row')}</span>` : ''}. Transfers never count as spending or income.</p>`;
 
@@ -2899,10 +2910,10 @@
         <input type="checkbox" id="impClearSample" ${imp.clearSample ? 'checked' : ''}> <span>Remove the sample data first, so totals and balances only show your real data.</span></label>`;
     }
 
-    if (p.flagged.length) {
+    if (flagged.length) {
       html += `<div class="imp-sec"><h4>Check these amounts</h4>
         <p>The original currency isn’t SAR but Monefy’s converted amount is the same number, so it probably wasn’t converted. Enter the correct SAR amount, or leave it empty to skip the row.</p>
-        <div class="imp-list">${p.flagged.map((r) => `
+        <div class="imp-list">${flagged.map((r) => `
           <div class="imp-row flag">
             <div class="head"><span class="name">${esc(r.account)} · ${esc(r.category)}</span><span class="meta">Line ${r.line} · ${rowWhen(r)}</span></div>
             <div class="imp-note">${esc(r.amount.toLocaleString('en'))} ${esc(r.currency)} was recorded as ${esc(r.converted.toLocaleString('en'))} SAR${p.accountCurrencies[r.account] === r.currency ? ` · the ${esc(r.currency)} amount is kept; the SAR amount sets the exchange rate` : ""}${r.description ? ` · “${esc(r.description)}”` : ''}</div>
@@ -3042,7 +3053,7 @@
     for (const n of importAccountNames()) {
       if (c.accounts[n].target === 'new' && !String(c.accounts[n].name ?? n).trim()) { toast(`Give the account for “${n}” a name.`); return; }
     }
-    const missing = p.flagged.filter((r) => !(Number(c.corrections[r.line]) > 0));
+    const missing = flaggedToFix().filter((r) => !(Number(c.corrections[r.line]) > 0));
     if (missing.length) {
       const ok = await confirmAsk('Skip flagged rows?', `${plural(missing.length, 'flagged row')} ${missing.length === 1 ? 'has' : 'have'} no SAR amount and won’t be imported. Continue?`, 'Import without them', false);
       if (!ok) return;

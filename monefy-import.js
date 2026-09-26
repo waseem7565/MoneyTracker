@@ -233,9 +233,7 @@
    */
   function applyImport(state, plan, choices, helpers) {
     const summary = { imported: { transactions: 0, transfers: 0, startBalances: 0, accounts: 0, categories: 0 }, skipped: [], failed: [], accountIds: {} };
-    const existingKeys = new Set();
-    state.transactions.forEach((t) => (t.importKeys || []).forEach((k) => existingKeys.add(k)));
-    state.accounts.forEach((a) => (a.importKeys || []).forEach((k) => existingKeys.add(k)));
+    const existingKeys = importedKeys(state);
     const isDup = (...rows) => rows.some((r) => existingKeys.has(r.key));
     const dup = (r) => summary.skipped.push({ line: r.line, reason: 'Already imported' });
     const amountOf = (r) => {
@@ -363,6 +361,14 @@
     return summary;
   }
 
+  /** Keys of rows from earlier imports that are still in the app (these are skipped as duplicates). */
+  function importedKeys(state) {
+    const keys = new Set();
+    state.transactions.forEach((t) => (t.importKeys || []).forEach((k) => keys.add(k)));
+    state.accounts.forEach((a) => (a.importKeys || []).forEach((k) => keys.add(k)));
+    return keys;
+  }
+
   /** Balance an account shows in the app, in its own currency: starting balance plus every transaction and transfer. */
   function accountBalance(state, id) {
     const acc = state.accounts.find((a) => a.id === id);
@@ -374,7 +380,7 @@
     return round2(b);
   }
 
-  const api = { parseCsv, parseMonefy, buildPlan, defaultChoices, applyImport, accountBalance, resolveCategory, catStem };
+  const api = { parseCsv, parseMonefy, buildPlan, defaultChoices, applyImport, accountBalance, importedKeys, resolveCategory, catStem };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MonefyImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

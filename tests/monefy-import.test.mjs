@@ -92,6 +92,11 @@ test('import: balances match Monefy, transfers are not expenses, duplicates are 
   assert.ok(state.categories.includes('Salary') && state.categories.includes('Travel'));
   assert.equal(state.categories[state.categories.length - 1], 'Other'); // new categories go before "Other"
 
+  // After importing, the flagged row counts as imported, so the import screen doesn't ask for its SAR amount again.
+  const done = M.importedKeys(state);
+  assert.equal(plan.flagged.filter((r) => !done.has(r.key)).length, 0);
+  assert.equal(plan.rows.filter((r) => done.has(r.key)).length, plan.rows.length);
+
   const count = state.transactions.length;
   const again = M.applyImport(state, plan, M.defaultChoices(plan, state), helpers());
   assert.equal(state.transactions.length, count);
