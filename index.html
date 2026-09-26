@@ -764,7 +764,7 @@
   .tx .desc { font-weight: 600; }
   .tx .amt { font-weight: 700; }
   .tx:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
-  /* Swipe-to-delete rows (Account details): the row always stays fully opaque, so the red layer behind it never shows
+  /* Swipe-to-delete rows (Account details, Activity, Home → Recent): the row always stays fully opaque, so the red layer behind it never shows
      through; tapping tints it (still opaque) instead. The red layer only appears once a swipe has started. */
   .ad-item .tx, .ad-item .tx:hover { background: var(--surface); -webkit-tap-highlight-color: transparent; }
   .ad-item .tx:active { background: color-mix(in srgb, var(--text) 6%, var(--surface)); }
@@ -2105,7 +2105,7 @@
       amt = foreign ? `${sign}${esc(fmtCur(t.origAmount, t.currency))}<span class="sub">${esc(fmt(t.amount))}</span>` : `${sign}${esc(fmt(t.amount))}`;
       cls = t.type;
     }
-    return `<li><button class="tx" data-edit-tx="${esc(t.id)}">
+    return `<li class="ad-item"><div class="swipe-del" aria-hidden="true">Delete</div><button class="tx" data-edit-tx="${esc(t.id)}">
       ${icon}
       <span class="grow"><span class="desc">${esc(desc)}</span><span class="meta">${esc(meta)}</span></span>
       <span class="amt num ${cls}">${amt}</span>
@@ -3043,9 +3043,9 @@
   $('#adCategory').addEventListener('change', (e) => { ui.accFilters.category = e.target.value; refreshAccountList(); });
   $('#adType').addEventListener('change', (e) => { ui.accFilters.type = e.target.value; refreshAccountList(); });
 
-  // Swipe left on a transaction (touch) to delete it.
-  (() => {
-    const list = $('#adList');
+  // Swipe left on a transaction (touch) to delete it: Account details, Activity and Home → Recent.
+  ['#adList', '#txList', '#recentList'].forEach((listSel) => {
+    const list = $(listSel);
     let s = null, justSwiped = false;
     list.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('.ad-item .tx');
@@ -3080,7 +3080,7 @@
     list.addEventListener('pointerup', end);
     list.addEventListener('pointercancel', end);
     list.addEventListener('click', (e) => { if (justSwiped) { e.stopPropagation(); e.preventDefault(); } }, true); // a swipe isn't a tap
-  })();
+  });
 
   function viewAccountTransactions(id) {
     ui.filters = { q: '', account: id, category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' };
