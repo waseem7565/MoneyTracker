@@ -447,6 +447,39 @@
     dialog :is(input, select), .type-toggle label, .swatches button { transition: none !important; }
   }
 
+  /* Account details */
+  .acc-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+  .acc-head h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  .acc-head .meta { font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .acc-head .swatch-dot { height: 40px; }
+  .ad-balance { padding: 16px 18px; border-top: 4px solid var(--acc, var(--accent)); }
+  .ad-balance .big { font-size: 32px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; overflow-wrap: anywhere; }
+  .ad-tiles .tile-value.pos { color: var(--pos); }
+  @media (max-width: 720px) { .ad-tiles { grid-template-columns: 1fr 1fr 1fr; } .ad-tiles .tile:first-child { grid-column: auto; } .ad-tiles .tile-value, .ad-tiles .tile:first-child .tile-value { font-size: 17px; } }
+  /* Phones: one compact row per figure, so long amounts never wrap. */
+  @media (max-width: 520px) {
+    .ad-tiles { grid-template-columns: 1fr; gap: 6px; }
+    .ad-tiles .tile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 11px 14px; }
+    .ad-tiles .tile-value, .ad-tiles .tile:first-child .tile-value { font-size: 17px; margin: 0; }
+  }
+  #adRangeSeg button { padding: 6px 10px; }
+  .ad-filters { grid-template-columns: 2fr 1fr 1fr; }
+  @media (max-width: 720px) { .ad-filters { grid-template-columns: 1fr 1fr; } }
+  .ad-day { margin-bottom: 10px; overflow: hidden; }
+  .ad-day-head { display: flex; justify-content: space-between; gap: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 600; color: var(--text-2); background: var(--surface-2); }
+  .ad-item { position: relative; overflow: hidden; border-top: 1px solid var(--border); }
+  .ad-item:first-of-type { border-top: 0; }
+  .ad-item .tx { border-top: 0; background: var(--surface); position: relative; z-index: 1; touch-action: pan-y; transition: transform .2s var(--dlg-ease); }
+  .ad-item.dragging .tx { transition: none; }
+  .ad-item .swipe-del { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px; background: var(--neg); color: #fff; font-weight: 600; font-size: 14px; }
+  .tx-icon { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; }
+  .tx-icon svg { width: 18px; height: 18px; }
+  .tx-icon.transfer { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  .tx-icon.cat { background: color-mix(in srgb, var(--c) 18%, transparent); }
+  .tx-icon.cat::after { content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+  .tx .run { display: block; text-align: right; font-size: 11.5px; font-weight: 400; color: var(--muted); white-space: nowrap; }
+  @media (hover: hover) and (pointer: fine) { #adSwipeHint { display: none; } }
+
   /* Purchase detection */
   .pending { overflow: hidden; margin-bottom: 16px; border-left: 4px solid var(--accent); }
   .pending-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; font-weight: 600; }
@@ -760,6 +793,72 @@
         <div class="parse-out" id="ptOut" hidden aria-live="polite"></div>
       </div>
     </div>
+  </section>
+
+  <!-- ACCOUNT DETAILS (opened from an account on the dashboard; not a tab) -->
+  <section class="view" id="view-account" hidden>
+    <div class="acc-head">
+      <button class="btn icon-btn" id="adBack" aria-label="Back to dashboard" title="Back to dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span class="swatch-dot" id="adColor"></span>
+      <div class="grow"><h2 id="adName"></h2><div class="meta" id="adMeta"></div></div>
+      <button class="btn sm" id="adEdit">Edit</button>
+    </div>
+
+    <div class="card ad-balance">
+      <div class="tile-label">Current balance</div>
+      <div class="big num" id="adBalance"></div>
+      <div class="tile-sub num" id="adBalanceSar"></div>
+    </div>
+
+    <div class="controls">
+      <h2 id="adPeriodLabel">This month</h2>
+      <div class="seg" id="adRangeSeg" role="group" aria-label="Period">
+        <button data-ad-range="month" aria-pressed="true">This month</button>
+        <button data-ad-range="3m" aria-pressed="false">3 months</button>
+        <button data-ad-range="year" aria-pressed="false">This year</button>
+        <button data-ad-range="all" aria-pressed="false">All time</button>
+      </div>
+    </div>
+    <div class="tiles ad-tiles">
+      <div class="card tile"><div class="tile-label">Money in</div><div class="tile-value num pos" id="adIn"></div></div>
+      <div class="card tile"><div class="tile-label">Money out</div><div class="tile-value num" id="adOut"></div></div>
+      <div class="card tile"><div class="tile-label">Net change</div><div class="tile-value num" id="adNet"></div></div>
+    </div>
+
+    <div class="charts" style="margin-top:12px">
+      <div class="card chart-card">
+        <h3>Balance over time</h3>
+        <div class="sub" id="adLineSub"></div>
+        <div class="chart-box"><canvas id="adLineChart" role="img" aria-label="Line chart of this account's balance over time"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Spending by category</h3>
+        <div class="sub" id="adDonutSub"></div>
+        <div class="donut-wrap">
+          <div class="chart-box">
+            <canvas id="adDonutChart" role="img" aria-label="Donut chart of this account's spending by category"></canvas>
+            <div class="donut-center" id="adDonutCenter"></div>
+          </div>
+          <ul class="legend" id="adDonutLegend"></ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section">Transactions <button class="btn sm primary" id="adAdd">+ Add transaction</button></h2>
+    <div class="card filters ad-filters">
+      <input class="search" type="search" id="adSearch" placeholder="Search description…" aria-label="Search this account's transactions">
+      <select id="adCategory" aria-label="Filter by category"></select>
+      <select id="adType" aria-label="Filter by type">
+        <option value="all">All types</option>
+        <option value="expense">Expenses</option>
+        <option value="income">Income</option>
+        <option value="transfer">Transfers</option>
+      </select>
+    </div>
+    <div class="list-head"><span id="adCount"></span><span class="tile-sub" id="adSwipeHint">Swipe left on a transaction to delete it</span></div>
+    <div id="adList"></div>
   </section>
 </main>
 
@@ -1354,6 +1453,9 @@
     tab: 'dashboard',
     chartAccount: 'all',
     range: 'month',
+    accountId: null, // account shown on the Account details page
+    accRange: 'month',
+    accFilters: { q: '', category: 'all', type: 'all' },
     filters: { q: '', account: 'all', category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' }
   };
 
@@ -1377,6 +1479,7 @@
       if (detailBudget && budgetById(detailBudget.id)) renderBudgetDetail(); else $('#budgetDetailDialog').close();
     }
     if (ui.tab === 'dashboard' && !empty) renderCharts();
+    if (ui.tab === 'account') renderAccountDetails();
   }
 
   // Every data change goes through here: roll budgets forward, raise alerts, persist, redraw.
@@ -1411,7 +1514,7 @@
 
   function renderAccountStrip() {
     $('#accStrip').innerHTML = state.accounts.map((a) => `
-      <button class="card acc-mini" data-view-account="${esc(a.id)}" title="View transactions">
+      <button class="card acc-mini" data-account-details="${esc(a.id)}" title="Open account">
         <span class="swatch-dot" style="background:${esc(a.color)}"></span>
         <span class="grow">
           <div class="name">${esc(a.name)} <span class="meta">· ${ACC_TYPES[a.type] || a.type}</span></div>
@@ -1535,6 +1638,7 @@
         </dl>
         <div class="actions">
           <button class="btn sm" data-edit-account="${esc(a.id)}">Edit</button>
+          <button class="btn sm" data-account-details="${esc(a.id)}">Details</button>
           <button class="btn sm" data-view-account="${esc(a.id)}">Transactions</button>
           <button class="btn sm" data-add-tx-account="${esc(a.id)}">+ Transaction</button>
         </div>
@@ -1758,6 +1862,19 @@
   const charts = {};
   function destroyCharts() { Object.keys(charts).forEach((k) => { charts[k].destroy(); delete charts[k]; }); }
 
+  /** Theme colors and shared tooltip for every chart (dashboard and account details). */
+  function chartStyle() {
+    const text2 = cssVar('--text-2'), grid = cssVar('--grid'), surface = cssVar('--surface'), muted = cssVar('--muted');
+    Chart.defaults.color = text2;
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.font.size = 12;
+    const tooltip = {
+      backgroundColor: cssVar('--text'), titleColor: cssVar('--bg'), bodyColor: cssVar('--bg'),
+      padding: 10, cornerRadius: 8, boxPadding: 4, usePointStyle: true
+    };
+    return { text2, grid, surface, muted, tooltip };
+  }
+
   function renderCharts() {
     if (!window.Chart) {
       ['donutChart', 'barChart', 'lineChart', 'budgetChart'].forEach((id) => {
@@ -1767,14 +1884,7 @@
       return;
     }
     destroyCharts();
-    const text2 = cssVar('--text-2'), grid = cssVar('--grid'), surface = cssVar('--surface'), muted = cssVar('--muted');
-    Chart.defaults.color = text2;
-    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-    Chart.defaults.font.size = 12;
-    const tooltip = {
-      backgroundColor: cssVar('--text'), titleColor: cssVar('--bg'), bodyColor: cssVar('--bg'),
-      padding: 10, cornerRadius: 8, boxPadding: 4, usePointStyle: true
-    };
+    const { text2, grid, surface, muted, tooltip } = chartStyle();
 
     const { start, end, label } = rangeBounds(ui.range);
     const acctLabel = ui.chartAccount === 'all' ? 'All accounts' : (accById(ui.chartAccount) || {}).name;
@@ -1914,8 +2024,245 @@
     $$('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     $$('.view').forEach((v) => { v.hidden = v.id !== 'view-' + tab; });
     if (tab === 'dashboard' && state.accounts.length) renderCharts();
+    if (tab === 'account') renderAccountDetails();
     window.scrollTo({ top: 0 });
   }
+
+  // ---------- Account details ----------
+  // Opened by tapping an account on the dashboard. Amounts are in the account's own currency (with SAR equivalents
+  // for other currencies). It re-renders from renderAll, so any add, edit or delete shows up here immediately.
+  const accCharts = {};
+  const TRANSFER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4M17 17H4l4 4"/></svg>';
+  const dayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+  function openAccountDetails(id) {
+    if (!accById(id)) return;
+    ui.accountId = id;
+    ui.accFilters = { q: '', category: 'all', type: 'all' };
+    $('#adSearch').value = '';
+    $('#adType').value = 'all';
+    setTab('account');
+  }
+
+  function accountRange(acc) {
+    if (ui.accRange !== 'all') return rangeBounds(ui.accRange);
+    const today = todayISO();
+    const first = state.transactions.filter((t) => touchesAccount(t, acc.id)).map((t) => t.date).sort()[0];
+    const monthStart = iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    return { start: first && first < monthStart ? first : monthStart, end: today, label: 'All time' };
+  }
+
+  /** The account's transactions, oldest first, each with its effect and the balance right after it. */
+  function accountLedger(acc) {
+    let bal = Number(acc.startBalance) || 0;
+    return state.transactions.map((t, i) => ({ t, i })).filter((x) => touchesAccount(x.t, acc.id))
+      .sort((a, b) => a.t.date.localeCompare(b.t.date) || a.i - b.i)
+      .map(({ t }) => { const delta = effectOn(t, acc.id); bal = round2(bal + delta); return { t, delta, after: bal }; });
+  }
+
+  function renderAccountDetails() {
+    const acc = accById(ui.accountId);
+    if (!acc) { setTab('dashboard'); return; }
+    const cur = accCur(acc), money = (n) => fmtCur(n, cur);
+    $('#view-account').style.setProperty('--acc', acc.color);
+    $('#adColor').style.background = acc.color;
+    $('#adName').textContent = acc.name;
+    $('#adMeta').innerHTML = [ACC_TYPES[acc.type] || acc.type, cur !== BASE && cur, ...(acc.cards || []).map((c) => '•' + c)]
+      .filter(Boolean).map((x) => `<span class="chip">${esc(x)}</span>`).join('');
+    $('#adBalance').textContent = money(nativeBalance(acc));
+    $('#adBalanceSar').hidden = cur === BASE;
+    $('#adBalanceSar').textContent = cur === BASE ? '' : sarEquivalent(acc);
+
+    const { start, end, label } = accountRange(acc);
+    $('#adPeriodLabel').textContent = label;
+    $$('#adRangeSeg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.adRange === ui.accRange)));
+    const ledger = accountLedger(acc);
+    const inPeriod = ledger.filter((x) => x.t.date >= start && x.t.date <= end);
+    const moneyIn = inPeriod.reduce((s, x) => s + Math.max(0, x.delta), 0);
+    const moneyOut = inPeriod.reduce((s, x) => s - Math.min(0, x.delta), 0);
+    const net = round2(moneyIn - moneyOut);
+    $('#adIn').textContent = `+${money(moneyIn)}`;
+    $('#adOut').textContent = `−${money(moneyOut)}`;
+    $('#adNet').textContent = `${net >= 0 ? '+' : '−'}${money(Math.abs(net))}`;
+
+    const cats = [...new Set(ledger.filter((x) => !isTransfer(x.t)).map((x) => x.t.category))].sort((a, b) => a.localeCompare(b));
+    if (ui.accFilters.category !== 'all' && !cats.includes(ui.accFilters.category)) ui.accFilters.category = 'all';
+    $('#adCategory').innerHTML = '<option value="all">All categories</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+    $('#adCategory').value = ui.accFilters.category;
+
+    renderAccountCharts(acc, ledger, start, end, label);
+    renderAccountList(acc, inPeriod);
+  }
+
+  function renderAccountList(acc, inPeriod) {
+    const cur = accCur(acc), money = (n) => fmtCur(n, cur);
+    const f = ui.accFilters, q = f.q.trim().toLowerCase();
+    const rows = inPeriod.slice().reverse().filter(({ t }) =>
+      (f.type === 'all' || t.type === f.type) &&
+      (f.category === 'all' || t.category === f.category) &&
+      (!q || [t.description, t.category, isTransfer(t) && (accById(t.accountId === acc.id ? t.toAccountId : t.accountId) || {}).name]
+        .some((s) => s && s.toLowerCase().includes(q))));
+    $('#adCount').textContent = `${rows.length} transaction${rows.length === 1 ? '' : 's'}`;
+    if (!rows.length) {
+      $('#adList').innerHTML = `<div class="card"><div class="empty">${inPeriod.length ? 'No transactions match your filters.' : 'No transactions in this period.'}</div></div>`;
+      return;
+    }
+    const days = [];
+    rows.forEach((x) => { const d = days[days.length - 1]; if (d && d.date === x.t.date) d.rows.push(x); else days.push({ date: x.t.date, rows: [x] }); });
+    $('#adList').innerHTML = days.map((d) => {
+      const dayNet = round2(d.rows.reduce((s, x) => s + x.delta, 0));
+      return `<div class="card ad-day">
+        <div class="ad-day-head"><span>${esc(dayFmt.format(parseISO(d.date)))}</span><span class="num">${dayNet >= 0 ? '+' : '−'}${esc(money(Math.abs(dayNet)))}</span></div>
+        ${d.rows.map(({ t, delta, after }) => {
+          let icon, title, meta;
+          if (isTransfer(t)) {
+            const outgoing = t.accountId === acc.id;
+            const other = accById(outgoing ? t.toAccountId : t.accountId);
+            icon = `<span class="tx-icon transfer" aria-hidden="true">${TRANSFER_ICON}</span>`;
+            title = `Transfer ${outgoing ? 'to' : 'from'} ${other ? other.name : 'an unknown account'}`;
+            meta = t.description ? esc(t.description) : '<span class="chip">Transfer</span>';
+          } else {
+            icon = `<span class="tx-icon cat" style="--c:${esc(catColor(t.category))}" aria-hidden="true"></span>`;
+            title = t.description || t.category;
+            meta = `<span class="chip">${esc(t.category)}</span>`;
+          }
+          const cls = isTransfer(t) ? 'transfer' : t.type;
+          return `<div class="ad-item">
+            <div class="swipe-del" aria-hidden="true">Delete</div>
+            <button class="tx" data-edit-tx="${esc(t.id)}">
+              ${icon}
+              <span class="grow"><div class="desc">${esc(title)}</div><div class="meta">${meta}</div></span>
+              <span class="amt num ${cls}">${delta >= 0 ? '+' : '−'}${esc(money(Math.abs(delta)))}${cur !== BASE ? `<span class="sub">${esc(fmt(t.amount))}</span>` : ''}<span class="run">Balance ${esc(money(after))}</span></span>
+            </button>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+  }
+
+  function renderAccountCharts(acc, ledger, start, end, label) {
+    Object.keys(accCharts).forEach((k) => { accCharts[k].destroy(); delete accCharts[k]; });
+    if (!window.Chart) return;
+    const cur = accCur(acc), money = (n) => fmtCur(n, cur);
+    const { grid, surface, muted, tooltip } = chartStyle();
+    const compactCur = (v) => `${cur} ${compact.format(v)}`;
+    $('#adLineSub').textContent = `${label} · ${cur}`;
+    $('#adDonutSub').textContent = `${label} · ${cur}`;
+
+    // Balance at the end of each day in the period.
+    const before = ledger.filter((x) => x.t.date < start).pop();
+    let bal = before ? before.after : Number(acc.startBalance) || 0;
+    const endOfDay = {};
+    ledger.forEach((x) => { if (x.t.date >= start && x.t.date <= end) endOfDay[x.t.date] = x.after; });
+    const days = [], data = [];
+    for (let d = parseISO(start), e = parseISO(end); d <= e; d.setDate(d.getDate() + 1)) {
+      const k = iso(d);
+      if (k in endOfDay) bal = endOfDay[k];
+      days.push(k); data.push(bal);
+    }
+    accCharts.line = new Chart($('#adLineChart'), {
+      type: 'line',
+      data: { labels: days, datasets: [{ label: acc.name, data, borderColor: acc.color, backgroundColor: acc.color, borderWidth: 2, pointRadius: days.length <= 1 ? 4 : 0, pointHoverRadius: 5, pointHoverBorderColor: surface, pointHoverBorderWidth: 2, tension: 0.15, stepped: false }] },
+      options: {
+        maintainAspectRatio: false, animation: { duration: 250 }, interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: { grid: { color: grid, drawTicks: false }, border: { display: false }, ticks: { color: muted, padding: 6, maxTicksLimit: 5, callback: compactCur } },
+          x: { grid: { display: false }, border: { color: grid }, ticks: { color: muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 6, callback: function (v) { return shortDateFmt.format(parseISO(this.getLabelForValue(v))); } } }
+        },
+        plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { title: (items) => dateFmt.format(parseISO(items[0].label)), label: (ctx) => ` Balance: ${money(ctx.parsed.y)}` } } }
+      }
+    });
+
+    // Spending by category (expenses only; transfers aren't spending).
+    const byCat = {};
+    ledger.forEach(({ t, delta }) => {
+      if (t.type !== 'expense' || t.date < start || t.date > end) return;
+      const c = chartCat(t.category);
+      byCat[c] = (byCat[c] || 0) - delta;
+    });
+    const cats = Object.entries(byCat).sort((a, b) => (a[0] === 'Other') - (b[0] === 'Other') || b[1] - a[1]);
+    const total = cats.reduce((s, c) => s + c[1], 0);
+    if (!cats.length) {
+      $('#adDonutCenter').innerHTML = '';
+      $('#adDonutLegend').innerHTML = '<li style="display:block;color:var(--muted)">No spending in this period.</li>';
+      accCharts.donut = new Chart($('#adDonutChart'), { type: 'doughnut', data: { datasets: [{ data: [1], backgroundColor: [grid], borderWidth: 0 }] }, options: { cutout: '68%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, maintainAspectRatio: false } });
+      return;
+    }
+    $('#adDonutCenter').innerHTML = `<div class="v num">${esc(compactCur(total))}</div><div class="l">spent</div>`;
+    $('#adDonutLegend').innerHTML = cats.map(([c, v]) => `<li><span class="key" style="background:${catColor(c)}"></span><span>${esc(c)}</span><span class="num">${esc(money(v))}</span><span class="pct num">${Math.round((v / total) * 100)}%</span></li>`).join('');
+    accCharts.donut = new Chart($('#adDonutChart'), {
+      type: 'doughnut',
+      data: { labels: cats.map((c) => c[0]), datasets: [{ data: cats.map((c) => round2(c[1])), backgroundColor: cats.map((c) => catColor(c[0])), borderColor: surface, borderWidth: 2, hoverOffset: 4 }] },
+      options: {
+        maintainAspectRatio: false, cutout: '68%', animation: { duration: 250 },
+        plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: { label: (ctx) => ` ${ctx.label}: ${money(ctx.parsed)} (${Math.round((ctx.parsed / total) * 100)}%)` } } }
+      }
+    });
+  }
+
+  // Delete with a confirmation (used by swipe-to-delete; the edit pop-up has its own Delete button).
+  async function confirmDeleteTx(t) {
+    if (await confirmAsk('Delete transaction?', `“${t.description || t.category || 'Transfer'}” (${fmt(t.amount)}) will be removed.`, 'Delete')) {
+      state.transactions = state.transactions.filter((x) => x !== t);
+      commit('Transaction deleted');
+    }
+  }
+
+  $('#adBack').addEventListener('click', () => setTab('dashboard'));
+  $('#adEdit').addEventListener('click', () => openAccDialog(accById(ui.accountId)));
+  $('#adAdd').addEventListener('click', () => openTxDialog(null, ui.accountId));
+  $('#adRangeSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-ad-range]');
+    if (!b) return;
+    ui.accRange = b.dataset.adRange;
+    renderAccountDetails();
+  });
+  const refreshAccountList = () => {
+    const acc = accById(ui.accountId);
+    if (!acc) return;
+    const { start, end } = accountRange(acc);
+    renderAccountList(acc, accountLedger(acc).filter((x) => x.t.date >= start && x.t.date <= end));
+  };
+  $('#adSearch').addEventListener('input', (e) => { ui.accFilters.q = e.target.value; refreshAccountList(); });
+  $('#adCategory').addEventListener('change', (e) => { ui.accFilters.category = e.target.value; refreshAccountList(); });
+  $('#adType').addEventListener('change', (e) => { ui.accFilters.type = e.target.value; refreshAccountList(); });
+
+  // Swipe left on a transaction (touch) to delete it.
+  (() => {
+    const list = $('#adList');
+    let s = null, justSwiped = false;
+    list.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('.ad-item .tx');
+      if (!btn || e.pointerType === 'mouse') return;
+      s = { btn, item: btn.parentElement, x: e.clientX, y: e.clientY, dx: 0, dir: null };
+    });
+    list.addEventListener('pointermove', (e) => {
+      if (!s) return;
+      const dx = e.clientX - s.x, dy = e.clientY - s.y;
+      if (!s.dir && Math.hypot(dx, dy) > 8) s.dir = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if (s.dir !== 'x') return;
+      s.dx = Math.max(-140, Math.min(0, dx));
+      s.item.classList.add('dragging');
+      s.btn.style.transform = `translateX(${s.dx}px)`;
+    });
+    const end = () => {
+      if (!s) return;
+      const { btn, item, dx, dir } = s;
+      s = null;
+      item.classList.remove('dragging');
+      btn.style.transform = '';
+      if (dir !== 'x') return;
+      justSwiped = true;
+      setTimeout(() => { justSwiped = false; }, 350);
+      if (dx < -90) {
+        const t = state.transactions.find((x) => x.id === btn.dataset.editTx);
+        if (t) confirmDeleteTx(t);
+      }
+    };
+    list.addEventListener('pointerup', end);
+    list.addEventListener('pointercancel', end);
+    list.addEventListener('click', (e) => { if (justSwiped) { e.stopPropagation(); e.preventDefault(); } }, true); // a swipe isn't a tap
+  })();
 
   function viewAccountTransactions(id) {
     ui.filters = { q: '', account: id, category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' };
@@ -2372,7 +2719,7 @@
   const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
   const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
   function paintThemeBtn() { $('#themeBtn').innerHTML = isDark() ? SUN : MOON; }
-  function onThemeChange() { paintThemeBtn(); renderCategories(); if (ui.tab === 'dashboard' && state.accounts.length) renderCharts(); }
+  function onThemeChange() { paintThemeBtn(); renderCategories(); if (ui.tab === 'dashboard' && state.accounts.length) renderCharts(); if (ui.tab === 'account') renderAccountDetails(); }
   $('#themeBtn').addEventListener('click', () => {
     const next = isDark() ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
@@ -2385,7 +2732,7 @@
 
   // ---------- Events ----------
   $$('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  $('#fab').addEventListener('click', () => openTxDialog(null));
+  $('#fab').addEventListener('click', () => openTxDialog(null, ui.tab === 'account' ? ui.accountId : undefined));
   $('#exportBtn').addEventListener('click', exportCSV);
   // ---------- Dialogs (shared behavior for every pop-up) ----------
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -2495,11 +2842,12 @@
   document.addEventListener('change', clearOwnError);
 
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget]');
+    const t = e.target.closest('[data-edit-tx],[data-edit-account],[data-view-account],[data-account-details],[data-add-tx-account],[data-action],[data-edit-cat],[data-goto],[data-budget-detail],[data-edit-budget]');
     if (!t) return;
     if (t.dataset.editTx) openTxDialog(state.transactions.find((x) => x.id === t.dataset.editTx));
     else if (t.dataset.editAccount) openAccDialog(accById(t.dataset.editAccount));
     else if (t.dataset.viewAccount) viewAccountTransactions(t.dataset.viewAccount);
+    else if (t.dataset.accountDetails) openAccountDetails(t.dataset.accountDetails);
     else if (t.dataset.addTxAccount) openTxDialog(null, t.dataset.addTxAccount);
     else if (t.dataset.action === 'add-account') openAccDialog(null);
     else if (t.dataset.action === 'add-budget') openBudgetDialog(null);
