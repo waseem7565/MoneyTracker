@@ -438,6 +438,55 @@
     dialog :is(input, select), .type-toggle label, .swatches button { transition: none !important; }
   }
 
+  /* Purchase detection */
+  .pending { overflow: hidden; margin-bottom: 16px; border-left: 4px solid var(--accent); }
+  .pending-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; font-weight: 600; }
+  .pending-head .tile-sub { font-weight: 400; margin: 0; }
+  .pending-list { list-style: none; margin: 0; padding: 0; }
+  .pending-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--border); }
+  .pending-item .what { font-weight: 600; overflow-wrap: anywhere; }
+  .pending-item .meta { font-size: 12.5px; color: var(--muted); }
+  .pending-item .acts { display: flex; gap: 6px; flex: none; }
+  .set-list { overflow: hidden; }
+  .set-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--border); }
+  .set-row:first-child { border-top: 0; }
+  .set-row.block { display: grid; gap: 8px; }
+  .set-row .t { font-weight: 500; }
+  .set-row .d { font-size: 12.5px; color: var(--muted); }
+  .set-row .d.bad { color: var(--neg); }
+  .set-row .d.good { color: var(--pos); }
+  .switch input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; width: 46px; height: 28px; border-radius: 14px; margin: 0; flex: none;
+    background: var(--limit); position: relative; cursor: pointer; transition: background-color .15s;
+  }
+  .switch input[type=checkbox]::after {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s;
+  }
+  .switch input[type=checkbox]:checked { background: var(--accent); }
+  .switch input[type=checkbox]:checked::after { transform: translateX(18px); }
+  .switch input[type=checkbox]:disabled { opacity: .45; cursor: default; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip-x { display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--surface-2); font-size: 13.5px; }
+  .chip-x button { border: 0; background: none; cursor: pointer; color: var(--muted); width: 26px; height: 26px; border-radius: 50%; }
+  .chip-x button:hover { background: var(--border); color: var(--text); }
+  .inline-add { display: flex; gap: 8px; }
+  .inline-add input { flex: 1; }
+  textarea.msg { width: 100%; min-height: 96px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: inherit; font: inherit; padding: 8px 10px; resize: vertical; }
+  textarea.msg:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .parse-out { font-size: 13.5px; border-radius: 10px; background: var(--surface-2); padding: 10px 12px; }
+  .parse-out dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 0; }
+  .parse-out dt { color: var(--muted); }
+  .parse-out dd { margin: 0; overflow-wrap: anywhere; }
+  .parse-out p { margin: 6px 0 0; color: var(--text-2); }
+  .parse-out p:first-child { margin-top: 0; }
+  .parse-out .none { color: var(--muted); }
+  .detect-note { font-size: 13px; color: var(--text-2); background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+  .detect-note strong { color: var(--text); }
+  .intro-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--text-2); font-size: 14.5px; }
+  .intro-list strong { color: var(--text); }
+  #appsList { max-height: min(50vh, 380px); }
+
   .toast {
     position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px); opacity: 0;
     background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px;
@@ -496,6 +545,7 @@
 
   <!-- DASHBOARD -->
   <section class="view" id="view-dashboard">
+    <div class="card pending" data-pending-slot hidden></div>
     <div id="welcome" class="card welcome" hidden>
       <h2>Welcome to MoneyTracker</h2>
       <p>Start by adding a bank account, cash wallet or credit card.</p>
@@ -590,6 +640,7 @@
 
   <!-- TRANSACTIONS -->
   <section class="view" id="view-transactions" hidden>
+    <div class="card pending" data-pending-slot hidden></div>
     <div class="card filters">
       <input class="search" type="search" id="fSearch" placeholder="Search description…" aria-label="Search description">
       <select id="fAccount" aria-label="Filter by account"></select>
@@ -637,6 +688,20 @@
     <h2 class="section">Categories</h2>
     <p class="tile-sub" style="margin:-4px 2px 10px">Tap a category to rename it, change its color or delete it.</p>
     <div class="card cat-list" id="catList"></div>
+
+    <h2 class="section" id="detect">Automatic purchase detection</h2>
+    <p class="tile-sub" style="margin:-4px 2px 10px">Spot card purchases in your bank’s SMS or app notifications and add them in a tap. Everything stays on this phone.</p>
+    <div class="card set-list" id="detectSettings"></div>
+    <div class="card set-list" id="detectTest" style="margin-top:12px" hidden>
+      <div class="set-row block">
+        <div><div class="t">Test with a sample message</div>
+        <div class="d">Paste a bank SMS to see what would be detected. It’s checked on this phone and isn’t saved.</div></div>
+        <input type="text" id="ptSender" placeholder="Sender (optional), e.g. AlRajhiBank" autocomplete="off" aria-label="Sender">
+        <textarea class="msg" id="ptText" dir="auto" placeholder="Paste a message…" aria-label="Sample message"></textarea>
+        <div><button class="btn" id="ptRun">Test</button></div>
+        <div class="parse-out" id="ptOut" hidden aria-live="polite"></div>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -650,6 +715,7 @@
   <form id="txForm" novalidate>
     <div class="dlg-head"><h3 id="txDlgTitle">Add transaction</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
     <div class="dlg-body">
+      <div class="detect-note" id="txDetectNote" hidden></div>
       <div class="type-toggle" role="radiogroup" aria-label="Transaction type">
         <label><input type="radio" name="type" value="expense" checked><span>Expense</span></label>
         <label><input type="radio" name="type" value="income"><span>Income</span></label>
@@ -676,6 +742,7 @@
     </div>
     <div class="dlg-foot">
       <button type="button" class="btn danger left" id="txDelete" hidden>Delete</button>
+      <button type="button" class="btn danger left" id="txDismiss" hidden>Dismiss</button>
       <button type="button" class="btn" data-close>Cancel</button>
       <button type="submit" class="btn primary">Save</button>
     </div>
@@ -699,6 +766,10 @@
         </label>
         <label class="field"><span>Starting balance (SAR)</span><input class="num" type="number" name="startBalance" step="0.01" inputmode="decimal" placeholder="0.00"></label>
       </div>
+      <label class="field"><span>Card or account last 4 digits (optional)</span>
+        <input type="text" name="cards" inputmode="numeric" maxlength="60" placeholder="e.g. 1234, 5678" autocomplete="off">
+      </label>
+      <p class="tile-sub" style="margin:-8px 0 0">Detected purchases made with these cards are filed under this account automatically.</p>
       <div class="field"><span>Color</span><div class="swatches" id="accSwatches"></div></div>
     </div>
     <div class="dlg-foot">
@@ -783,6 +854,36 @@
   </div>
 </dialog>
 
+<!-- Purchase detection: explanation shown before asking for permissions -->
+<dialog id="detectIntroDialog">
+  <div class="dlg-head"><h3>Detect purchases automatically?</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
+  <div class="dlg-body">
+    <ul class="intro-list">
+      <li><strong>What it does:</strong> when your bank texts you about a card purchase, you get a notification like “New purchase: 45.00 SAR at Starbucks”. Tap it to add the expense, already filled in.</li>
+      <li><strong>What it reads:</strong> only messages from the bank senders you choose. Everything else is ignored, and one-time passwords and verification codes are never processed.</li>
+      <li><strong>Privacy:</strong> messages are read on this phone only and never sent anywhere. The app keeps just the amount, merchant, card’s last 4 digits and time, never the message itself.</li>
+      <li><strong>Permissions:</strong> Android will ask to let the app receive SMS, and to show notifications. If you say no, the app still works as before, and you can turn this on later.</li>
+    </ul>
+  </div>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-close>Not now</button>
+    <button type="button" class="btn primary" id="detectIntroGo">Continue</button>
+  </div>
+</dialog>
+
+<!-- Purchase detection: choose bank apps whose notifications are read -->
+<dialog id="appsDialog">
+  <div class="dlg-head"><h3>Choose your bank apps</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="Close">✕</button></div>
+  <div class="dlg-body">
+    <input type="search" id="appsSearch" placeholder="Search apps…" aria-label="Search apps">
+    <div class="acc-checks" id="appsList"></div>
+  </div>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-close>Cancel</button>
+    <button type="button" class="btn primary" id="appsSave">Save</button>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="alerts" id="alerts" aria-live="assertive"></div>
 
@@ -822,6 +923,7 @@
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
   const todayISO = () => iso(new Date());
+  const toAsciiDigits = (s) => String(s || '').replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x660).replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x6F0);
   const round2 = (n) => Math.round(n * 100) / 100;
   const isDark = () => {
     const t = document.documentElement.getAttribute('data-theme');
@@ -862,6 +964,8 @@
           s.categories = Array.isArray(s.categories) && s.categories.length ? s.categories : DEFAULT_CATEGORIES.slice();
           if (!s.categories.includes('Other')) s.categories.push('Other');
           s.categoryColors = s.categoryColors && typeof s.categoryColors === 'object' ? s.categoryColors : {};
+          s.merchantCategories = s.merchantCategories && typeof s.merchantCategories === 'object' ? s.merchantCategories : {};
+          s.accounts.forEach((a) => { if (!Array.isArray(a.cards)) a.cards = []; });
           s.budgets = Array.isArray(s.budgets) ? s.budgets : [];
           s.notifications = Array.isArray(s.notifications) ? s.notifications : [];
           if (!s.budgetsSeeded) {
@@ -875,7 +979,7 @@
       }
     } catch (e) { storageOk = false; }
     // First visit: start with sample data.
-    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
+    return Object.assign({ accounts: [], transactions: [], categories: DEFAULT_CATEGORIES.slice(), categoryColors: {}, merchantCategories: {}, budgets: [], notifications: [], budgetsSeeded: true }, makeSample());
   }
 
   function save() {
@@ -1208,7 +1312,7 @@
       const exp = txs.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
       return `<div class="card acc-card" style="--acc:${esc(a.color)}">
         <div class="top">
-          <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span></div>
+          <div><div class="name">${esc(a.name)}</div><span class="chip">${ACC_TYPES[a.type] || a.type}</span>${(a.cards || []).map((c) => ` <span class="chip num" title="Linked card">•${esc(c)}</span>`).join('')}</div>
         </div>
         <div><div class="tile-label">Current balance</div><div class="bal num">${fmt(balanceOf(a))}</div></div>
         <dl class="num">
@@ -1660,6 +1764,7 @@
     state.budgets.forEach((b) => { if (b.category === from) b.category = to; });
     if (state.categoryColors[from]) { state.categoryColors[to] = state.categoryColors[from]; delete state.categoryColors[from]; }
     if (ui.filters.category === from) ui.filters.category = to;
+    for (const k in state.merchantCategories) if (state.merchantCategories[k] === from) state.merchantCategories[k] = to;
   }
 
   function removeCategory(name, moveTo) {
@@ -1668,6 +1773,7 @@
     state.budgets.forEach((b) => { if (b.category === name) b.category = moveTo; });
     delete state.categoryColors[name];
     if (ui.filters.category === name) ui.filters.category = 'all';
+    for (const k in state.merchantCategories) if (state.merchantCategories[k] === name) state.merchantCategories[k] = moveTo;
   }
 
   function addCategory(name) {
@@ -1683,26 +1789,33 @@
 
   // ---------- Transaction dialog ----------
   let editingTx = null;
-  function openTxDialog(tx, presetAccountId) {
+  let editingPurchase = null; // a detected purchase being added (see "Purchase detection")
+  // prefill: { amount, date, accountId, category, description, note, purchase } for a detected purchase.
+  function openTxDialog(tx, presetAccountId, prefill) {
     if (!state.accounts.length) { toast('Add an account first.'); openAccDialog(null); return; }
     editingTx = tx || null;
+    editingPurchase = prefill ? prefill.purchase : null;
     const f = $('#txForm');
-    $('#txDlgTitle').textContent = tx ? 'Edit transaction' : 'Add transaction';
+    $('#txDlgTitle').textContent = tx ? 'Edit transaction' : prefill ? 'Add detected purchase' : 'Add transaction';
     $('#txDelete').hidden = !tx;
+    $('#txDismiss').hidden = !prefill;
+    $('#txDetectNote').hidden = !prefill;
+    $('#txDetectNote').innerHTML = prefill ? prefill.note : '';
     clearFieldErrors(f);
     $('#txNewCatRow').hidden = true;
     f.accountId.innerHTML = state.accounts.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
     f.category.innerHTML = state.categories.map((c) => `<option>${esc(c)}</option>`).join('');
     const defaultAcc = presetAccountId || (ui.filters.account !== 'all' ? ui.filters.account : state.accounts[0].id);
+    const src = tx || prefill;
     f.querySelector(`input[name=type][value=${tx ? tx.type : 'expense'}]`).checked = true;
-    f.amount.value = tx ? tx.amount : '';
-    f.date.value = tx ? tx.date : todayISO();
-    f.accountId.value = tx ? tx.accountId : defaultAcc;
+    f.amount.value = src ? src.amount : '';
+    f.date.value = src ? src.date : todayISO();
+    f.accountId.value = tx ? tx.accountId : (prefill && prefill.accountId) || defaultAcc;
     if (tx && !state.categories.includes(tx.category)) f.category.insertAdjacentHTML('beforeend', `<option>${esc(tx.category)}</option>`);
-    f.category.value = tx ? tx.category : 'Food';
-    f.description.value = tx ? tx.description : '';
+    f.category.value = src ? src.category : 'Food';
+    f.description.value = src ? src.description : '';
     $('#txDialog').showModal();
-    if (!tx) setTimeout(() => f.amount.focus(), 30);
+    if (!tx && !prefill) setTimeout(() => f.amount.focus(), 30);
   }
 
   $('#txForm').addEventListener('submit', (e) => {
@@ -1718,8 +1831,20 @@
     };
     if (editingTx) Object.assign(editingTx, data);
     else state.transactions.push({ id: uid(), ...data });
+    const purchase = editingPurchase;
+    if (purchase) {
+      if (purchase.merchant) state.merchantCategories[merchantKey(purchase.merchant)] = data.category; // suggest it next time
+      resolvePurchase(purchase.id, 'saved');
+    }
     $('#txDialog').close();
-    commit(editingTx ? 'Transaction updated' : 'Transaction added');
+    commit(editingTx ? 'Transaction updated' : purchase ? 'Purchase added' : 'Transaction added');
+  });
+
+  $('#txDismiss').addEventListener('click', () => {
+    if (!editingPurchase) return;
+    resolvePurchase(editingPurchase.id, 'dismissed');
+    $('#txDialog').close();
+    toast('Purchase dismissed');
   });
 
   $('#txDelete').addEventListener('click', async () => {
@@ -1761,6 +1886,7 @@
     f.name.value = acc ? acc.name : '';
     f.type.value = acc ? acc.type : 'checking';
     f.startBalance.value = acc ? acc.startBalance : '';
+    f.cards.value = acc && acc.cards ? acc.cards.join(', ') : '';
     const used = state.accounts.map((a) => a.color.toLowerCase());
     accColor = acc ? acc.color : (ACCOUNT_SWATCHES.find((c) => !used.includes(c)) || ACCOUNT_SWATCHES[0]);
     renderSwatches();
@@ -1781,7 +1907,12 @@
     if (!name) { showFieldError(f.name, 'Give the account a name.'); return; }
     const sb = f.startBalance.value === '' ? 0 : round2(parseFloat(f.startBalance.value));
     if (Number.isNaN(sb)) { showFieldError(f.startBalance, 'Starting balance must be a number.'); return; }
-    const data = { name, type: f.type.value, startBalance: sb, color: accColor };
+    const cardParts = f.cards.value.split(/[\s,،;]+/).map(toAsciiDigits).filter(Boolean);
+    if (cardParts.some((c) => !/^\d{4}$/.test(c))) { showFieldError(f.cards, 'Enter the last 4 digits of each card, separated by commas.'); return; }
+    const cards = [...new Set(cardParts)];
+    const clash = state.accounts.find((a) => a !== editingAcc && (a.cards || []).some((c) => cards.includes(c)));
+    if (clash) { showFieldError(f.cards, `“${clash.name}” already uses ${cards.filter((c) => clash.cards.includes(c)).map((c) => '•' + c).join(', ')}.`); return; }
+    const data = { name, type: f.type.value, startBalance: sb, color: accColor, cards };
     if (editingAcc) Object.assign(editingAcc, data);
     else state.accounts.push({ id: uid(), ...data });
     $('#accDialog').close();
@@ -2224,6 +2355,329 @@
     commit('Sample data loaded');
   });
 
+  // ---------- Purchase detection (Android) ----------
+  // Listening, parsing and de-duplication run natively (android/…/purchases), even while the app is closed, and
+  // pending purchases are stored there. This part lists them, pre-fills the add pop-up, maps cards to accounts,
+  // suggests categories and holds the settings.
+  const PD = nativePlugin('PurchaseDetection');
+  let pendingPurchases = [];
+  let detectConfig = null; // { enabled, smsEnabled, notificationsEnabled, senders: [], apps: [{ package, label }] }
+  let detectStatus = null; // { sms: 'granted' | 'denied' | 'prompt' | …, notificationAccess, postNotifications, hasTelephony }
+
+  const amountFmt = new Intl.NumberFormat('en', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+  const fmtDetected = (p) => `${amountFmt.format(p.amount)} ${p.currency}`;
+  const whenText = (p) => `${shortDateFmt.format(parseISO(p.date))}${p.time ? ', ' + p.time : ''}`;
+  const accountForCard = (card) => state.accounts.find((a) => (a.cards || []).includes(card));
+
+  // Merchant names are compared loosely: case, Arabic letter forms, punctuation and branch numbers are ignored.
+  const merchantKey = (m) => toAsciiDigits(m).toLowerCase().normalize('NFKC')
+    .replace(/[ً-ْـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/(^| )\d+(?= |$)/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // First guess for merchants the user hasn't categorized yet. Their own choice always wins after that.
+  const MERCHANT_HINTS = {
+    Food: ['starbucks', 'coffee', 'cafe', 'café', 'kfc', 'mcdonald', 'burger', 'pizza', 'restaurant', 'albaik', 'al baik', 'shawarma', 'dunkin', 'tim hortons',
+      'bakery', 'hungerstation', 'jahez', 'talabat', 'mrsool', 'keeta', 'kudu', 'herfy', 'panda', 'danube', 'tamimi', 'othaim', 'carrefour', 'lulu', 'nesto',
+      'bindawood', 'grocery', 'supermarket', 'hyper', 'ستاربكس', 'قهوه', 'كافيه', 'مطعم', 'البيك', 'شاورما', 'مخبز', 'هنقرستيشن', 'جاهز', 'مرسول', 'كودو', 'هرفي',
+      'بنده', 'الدانوب', 'التميمي', 'العثيم', 'كارفور', 'لولو', 'بن داود', 'سوبرماركت', 'هايبر'],
+    Transport: ['uber', 'careem', 'bolt', 'jeeny', 'petrol', 'fuel', 'gas station', 'aldrees', 'sasco', 'naft', 'parking', 'saptco', 'flynas', 'flyadeal', 'saudia',
+      'اوبر', 'كريم', 'بنزين', 'محطه', 'الدريس', 'ساسكو', 'نفط', 'مواقف', 'سابتكو', 'طيران'],
+    Shopping: ['amazon', 'noon', 'jarir', 'extra', 'ikea', 'zara', 'h m', 'centrepoint', 'namshi', 'shein', 'mall', 'store', 'shop',
+      'امازون', 'نون', 'جرير', 'اكسترا', 'ايكيا', 'نمشي', 'مول', 'متجر'],
+    Bills: ['stc', 'mobily', 'zain', 'electricity', 'water', 'nwc', 'internet', 'sadad', 'اتصالات', 'موبايلي', 'زين', 'كهرباء', 'مياه', 'سداد', 'فاتوره'],
+    Entertainment: ['netflix', 'shahid', 'spotify', 'cinema', 'vox', 'muvi', 'amc', 'playstation', 'steam', 'osn', 'anghami', 'سينما', 'شاهد', 'انغامي'],
+    Health: ['pharmacy', 'nahdi', 'dawaa', 'hospital', 'clinic', 'dental', 'medical', 'صيدليه', 'النهدي', 'الدواء', 'مستشفي', 'عياده', 'طبي']
+  };
+
+  function suggestCategory(merchant) {
+    const existing = (c) => state.categories.find((x) => x.toLowerCase() === c.toLowerCase());
+    const key = merchantKey(merchant);
+    if (key) {
+      const remembered = state.merchantCategories[key];
+      if (remembered && state.categories.includes(remembered)) return remembered;
+      const padded = ` ${key} `;
+      for (const [cat, words] of Object.entries(MERCHANT_HINTS)) {
+        const real = existing(cat);
+        if (real && words.some((w) => { const k = merchantKey(w); return k.length < 4 ? padded.includes(` ${k} `) : key.includes(k); })) return real;
+      }
+    }
+    return existing('Other') || state.categories[state.categories.length - 1];
+  }
+
+  // ----- Pending purchases -----
+  async function refreshPending() {
+    if (!PD) return;
+    try { pendingPurchases = ((await PD.getPending()).purchases || []).sort((a, b) => b.receivedAt - a.receivedAt); } catch (e) { return; }
+    renderPending();
+  }
+
+  function renderPending() {
+    const list = pendingPurchases;
+    $$('[data-pending-slot]').forEach((slot) => {
+      slot.hidden = !list.length;
+      slot.innerHTML = !list.length ? '' : `
+        <div class="pending-head"><span>Pending purchases <span class="chip num">${list.length}</span></span><span class="tile-sub">From your bank messages</span></div>
+        <ul class="pending-list">${list.map((p) => `
+          <li class="pending-item">
+            <div class="grow">
+              <div class="what"><span class="num">${esc(fmtDetected(p))}</span>${p.merchant ? ` · ${esc(p.merchant)}` : ''}</div>
+              <div class="meta">${esc([p.card && `card •${p.card}`, whenText(p), p.senderLabel].filter(Boolean).join(' · '))}</div>
+            </div>
+            <div class="acts">
+              <button class="btn sm primary" data-pending-add="${esc(p.id)}">Add</button>
+              <button class="btn sm ghost" data-pending-dismiss="${esc(p.id)}">Dismiss</button>
+            </div>
+          </li>`).join('')}</ul>`;
+    });
+  }
+
+  function openPurchase(p) {
+    const acc = p.card ? accountForCard(p.card) : null;
+    const notes = [`Detected from ${p.source === 'notification' ? 'a notification from' : 'an SMS from'} <strong>${esc(p.senderLabel || p.sender || 'your bank')}</strong>.`];
+    if (acc) notes.push(`Card •${esc(p.card)} is linked to <strong>${esc(acc.name)}</strong>.`);
+    else if (p.card) notes.push(`Card •${esc(p.card)} isn’t linked to an account yet. Link it under Accounts → Edit to choose the account automatically.`);
+    if (p.currency !== 'SAR') notes.push(`The amount is in <strong>${esc(p.currency)}</strong>. If your bank charged a different SAR amount, enter that instead.`);
+    $$('dialog').forEach((d) => { if (d.open && d.id !== 'txDialog') d.close(); });
+    openTxDialog(null, null, {
+      purchase: p, amount: p.amount, date: p.date, accountId: acc ? acc.id : null,
+      category: suggestCategory(p.merchant), description: (p.merchant || '').slice(0, 80), note: notes.join(' ')
+    });
+  }
+
+  async function openPurchaseById(id) {
+    await refreshPending();
+    const p = pendingPurchases.find((x) => x.id === id);
+    if (p) openPurchase(p);
+    else toast('That purchase was already added or dismissed.');
+  }
+
+  function resolvePurchase(id, status) {
+    pendingPurchases = pendingPurchases.filter((p) => p.id !== id);
+    renderPending();
+    if (PD) PD.resolvePending({ id, status }).catch(() => {});
+  }
+
+  document.addEventListener('click', (e) => {
+    const add = e.target.closest('[data-pending-add]'), dismiss = e.target.closest('[data-pending-dismiss]');
+    if (add) {
+      const p = pendingPurchases.find((x) => x.id === add.dataset.pendingAdd);
+      if (p) openPurchase(p);
+    } else if (dismiss) {
+      resolvePurchase(dismiss.dataset.pendingDismiss, 'dismissed');
+      toast('Purchase dismissed');
+    }
+  });
+
+  // ----- Settings -----
+  async function refreshDetect() {
+    if (PD) {
+      try { [detectConfig, detectStatus] = await Promise.all([PD.getConfig(), PD.getStatus()]); } catch (e) { /* keep the last known values */ }
+    }
+    renderDetectSettings();
+  }
+
+  async function saveDetect(changes) {
+    try { detectConfig = await PD.setConfig(changes); } catch (e) { toast('Could not save that setting.'); }
+    await refreshDetect();
+  }
+
+  const switchRow = (id, on, title, desc, extra = '') => `
+    <div class="set-row switch">
+      <div class="grow"><div class="t" id="${id}Label">${title}</div><div class="d">${desc}</div></div>
+      ${extra}<input type="checkbox" id="${id}" aria-labelledby="${id}Label" ${on ? 'checked' : ''}>
+    </div>`;
+
+  function renderDetectSettings() {
+    const box = $('#detectSettings');
+    $('#detectTest').hidden = !PD;
+    if (!PD) {
+      box.innerHTML = '<div class="set-row"><div class="grow"><div class="t">Available in the Android app</div><div class="d">Install Expense Tracker on your phone to detect purchases from bank SMS and notifications.</div></div></div>';
+      return;
+    }
+    if (!detectConfig || !detectStatus) { box.innerHTML = '<div class="set-row"><div class="d">Loading…</div></div>'; return; }
+    const c = detectConfig, s = detectStatus;
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    let html = switchRow('detectOn', c.enabled, 'Detect purchases',
+      c.enabled ? 'On. New purchases are listed under “Pending purchases” and shown as a notification.' : 'Off. No messages are read.');
+    if (c.enabled) {
+      let smsDesc, smsBtn = '';
+      if (!s.hasTelephony) smsDesc = 'This device can’t receive SMS.';
+      else if (!c.smsEnabled) smsDesc = 'Off.';
+      else if (s.sms === 'granted') smsDesc = `<span class="good">Allowed.</span> ${c.senders.length ? `Watching ${plural(c.senders.length, 'sender')}.` : 'Add your bank’s sender below.'}`;
+      else {
+        smsDesc = '<span class="bad">SMS permission isn’t granted, so SMS detection is paused.</span>';
+        smsBtn = `<button class="btn sm" id="detectSmsAllow">${s.sms === 'denied' ? 'Open settings' : 'Allow'}</button>`;
+      }
+      html += switchRow('detectSms', c.smsEnabled && s.hasTelephony, 'From bank SMS', smsDesc, smsBtn);
+
+      let nDesc, nBtn = '';
+      if (!c.notificationsEnabled) nDesc = 'Off. Optionally, also read notifications from your bank apps.';
+      else if (!s.notificationAccess) {
+        nDesc = '<span class="bad">Notification access is off in Android settings.</span>';
+        nBtn = '<button class="btn sm" id="detectNotifAccess">Open settings</button>';
+      } else nDesc = `<span class="good">Allowed.</span> ${c.apps.length ? `Watching ${plural(c.apps.length, 'app')}.` : 'Choose your bank apps below.'}`;
+      html += switchRow('detectNotif', c.notificationsEnabled, 'From bank app notifications', nDesc, nBtn);
+
+      if (!s.postNotifications) {
+        html += `<div class="set-row"><div class="grow"><div class="t">Purchase alerts</div>
+          <div class="d bad">Notifications are blocked, so you won’t get a “New purchase” alert. Detected purchases still appear in the app.</div></div>
+          <button class="btn sm" id="detectPostAllow">Allow</button></div>`;
+      }
+
+      if (c.smsEnabled && s.hasTelephony) {
+        html += `<div class="set-row block">
+          <div><div class="t">Bank SMS senders</div><div class="d">Only SMS from these senders are read. Use the name shown in your Messages app, e.g. AlRajhiBank.</div></div>
+          ${c.senders.length ? `<div class="chips">${c.senders.map((x, i) => `<span class="chip-x">${esc(x)}<button data-del-sender="${i}" aria-label="Remove ${esc(x)}">✕</button></span>`).join('')}</div>` : ''}
+          <div class="inline-add"><input type="text" id="detectSenderInput" maxlength="40" placeholder="Add a sender" autocomplete="off" aria-label="Bank SMS sender"><button class="btn" id="detectSenderAdd">Add</button></div>
+        </div>`;
+      }
+      if (c.notificationsEnabled) {
+        html += `<div class="set-row block">
+          <div><div class="t">Bank apps</div><div class="d">Only notifications from these apps are read.</div></div>
+          ${c.apps.length ? `<div class="chips">${c.apps.map((a, i) => `<span class="chip-x">${esc(a.label)}<button data-del-app="${i}" aria-label="Remove ${esc(a.label)}">✕</button></span>`).join('')}</div>` : ''}
+          <div><button class="btn" id="detectChooseApps">Choose apps</button></div>
+        </div>`;
+      }
+    }
+    box.innerHTML = html;
+  }
+
+  async function requestSmsPermission() {
+    if (!detectStatus || !detectStatus.hasTelephony || detectStatus.sms === 'granted') return;
+    if (detectStatus.sms === 'denied') { PD.openAppSettings(); return; } // Android won't ask again; the user has to allow it there
+    try { await PD.requestPermissions({ permissions: ['sms'] }); } catch (e) {}
+  }
+
+  async function requestPostNotifications() {
+    if (!LocalNotif) return;
+    await refreshNotifPerm();
+    if (nativeNotifPerm === 'denied') { PD.openAppSettings(); return; }
+    try { nativeNotifPerm = toPerm((await LocalNotif.requestPermissions()).display); } catch (e) {}
+    renderBell();
+  }
+
+  $('#detectSettings').addEventListener('change', async (e) => {
+    const id = e.target.id;
+    if (id === 'detectOn') {
+      if (e.target.checked) { e.target.checked = false; $('#detectIntroDialog').showModal(); } // explain first
+      else await saveDetect({ enabled: false });
+    } else if (id === 'detectSms') {
+      await saveDetect({ smsEnabled: e.target.checked });
+      if (e.target.checked) { await requestSmsPermission(); await refreshDetect(); }
+    } else if (id === 'detectNotif') {
+      if (!e.target.checked) { await saveDetect({ notificationsEnabled: false }); return; }
+      if (detectStatus.notificationAccess) { await saveDetect({ notificationsEnabled: true }); return; }
+      e.target.checked = false;
+      const ok = await confirmAsk('Allow notification access?',
+        'Android will open “Notification access”. Turn on Expense Tracker there, then come back. The app only looks at notifications from the bank apps you choose here, ignores all others, and never stores their text.',
+        'Open settings', false);
+      if (!ok) return;
+      await saveDetect({ notificationsEnabled: true });
+      PD.openNotificationAccessSettings();
+    }
+  });
+
+  $('#detectSettings').addEventListener('click', async (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.id === 'detectSmsAllow') { await requestSmsPermission(); await refreshDetect(); }
+    else if (t.id === 'detectNotifAccess') PD.openNotificationAccessSettings();
+    else if (t.id === 'detectPostAllow') { await requestPostNotifications(); await refreshDetect(); }
+    else if (t.id === 'detectSenderAdd') addSender();
+    else if (t.id === 'detectChooseApps') openAppsDialog();
+    else if (t.dataset.delSender !== undefined) await saveDetect({ senders: detectConfig.senders.filter((_, i) => i !== Number(t.dataset.delSender)) });
+    else if (t.dataset.delApp !== undefined) await saveDetect({ apps: detectConfig.apps.filter((_, i) => i !== Number(t.dataset.delApp)) });
+  });
+  $('#detectSettings').addEventListener('keydown', (e) => { if (e.target.id === 'detectSenderInput' && e.key === 'Enter') { e.preventDefault(); addSender(); } });
+
+  async function addSender() {
+    const input = $('#detectSenderInput');
+    const name = input.value.trim().replace(/\s+/g, ' ');
+    if (!name) { input.focus(); return; }
+    const norm = (x) => toAsciiDigits(x).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    if (detectConfig.senders.some((x) => norm(x) === norm(name))) { toast(`“${name}” is already on the list.`); return; }
+    await saveDetect({ senders: detectConfig.senders.concat(name) });
+    toast(`Watching SMS from “${name}”`);
+  }
+
+  $('#detectIntroGo').addEventListener('click', async () => {
+    $('#detectIntroDialog').close();
+    await saveDetect({ enabled: true });
+    if (detectConfig.smsEnabled) await requestSmsPermission();
+    await requestPostNotifications();
+    await refreshDetect();
+    const smsOk = detectStatus.sms === 'granted';
+    toast(smsOk || !detectStatus.hasTelephony ? 'Purchase detection is on. Now add your bank’s SMS sender.' : 'Detection is on, but SMS permission wasn’t granted. You can allow it here any time.');
+    const input = $('#detectSenderInput');
+    if (input && smsOk) setTimeout(() => input.scrollIntoView({ block: 'center', behavior: reduceMotion.matches ? 'auto' : 'smooth' }), 250);
+  });
+
+  // ----- Bank app picker -----
+  let appChoices = [];
+  const pickedApps = new Map(); // package -> label
+  async function openAppsDialog() {
+    pickedApps.clear();
+    detectConfig.apps.forEach((a) => pickedApps.set(a.package, a.label));
+    $('#appsSearch').value = '';
+    $('#appsList').innerHTML = '<span class="tile-sub">Loading apps…</span>';
+    $('#appsDialog').showModal();
+    try { appChoices = (await PD.listApps()).apps || []; } catch (e) { appChoices = []; }
+    renderAppsList();
+  }
+  function renderAppsList() {
+    const q = $('#appsSearch').value.trim().toLowerCase();
+    const list = appChoices
+      .filter((a) => !q || a.label.toLowerCase().includes(q) || a.package.toLowerCase().includes(q))
+      .sort((a, b) => pickedApps.has(b.package) - pickedApps.has(a.package)); // chosen apps first
+    $('#appsList').innerHTML = list.length
+      ? list.map((a) => `<label><input type="checkbox" data-app-pkg="${esc(a.package)}" data-app-label="${esc(a.label)}" ${pickedApps.has(a.package) ? 'checked' : ''}>${esc(a.label)}</label>`).join('')
+      : '<span class="tile-sub">No apps found.</span>';
+  }
+  $('#appsSearch').addEventListener('input', renderAppsList);
+  $('#appsList').addEventListener('change', (e) => {
+    const i = e.target;
+    if (!i.dataset.appPkg) return;
+    if (i.checked) pickedApps.set(i.dataset.appPkg, i.dataset.appLabel); else pickedApps.delete(i.dataset.appPkg);
+  });
+  $('#appsSave').addEventListener('click', async () => {
+    const apps = [...pickedApps].map(([pkg, label]) => ({ package: pkg, label }));
+    $('#appsDialog').close();
+    await saveDetect({ apps });
+  });
+
+  // ----- Parser test -----
+  const PARSE_REASONS = {
+    otp: 'Ignored: this looks like a one-time password or verification code. Those are never processed.',
+    not_purchase: 'Ignored: this doesn’t look like a card purchase. Refunds, deposits, transfers, cash withdrawals and declined payments are skipped.',
+    no_amount: 'This looks like a purchase, but no amount was found. Messages in this format need a rule for your bank in purchase_rules.json.',
+    empty: 'Paste a message first.'
+  };
+  $('#ptRun').addEventListener('click', async () => {
+    const text = $('#ptText').value, sender = $('#ptSender').value.trim();
+    const out = $('#ptOut');
+    let r = null;
+    // Keep the pasted message out of Capacitor's debug-build log.
+    const cap = window.Capacitor, wasLogging = cap.isLoggingEnabled;
+    cap.isLoggingEnabled = false;
+    try { r = await PD.parse({ text, sender }); } catch (e) { r = null; } finally { cap.isLoggingEnabled = wasLogging; }
+    out.hidden = false;
+    if (!r) { out.innerHTML = '<p>Couldn’t run the test.</p>'; return; }
+    const notes = [];
+    if (r.bank) notes.push(`Matched the rules for <strong>${esc(r.bank)}</strong>.`);
+    if (sender && !r.senderWatched) notes.push(`“${esc(sender)}” isn’t in your bank senders, so real messages from it would be ignored.`);
+    const extra = notes.map((n) => `<p>${n}</p>`).join('');
+    if (!r.ok) { out.innerHTML = `<p>${PARSE_REASONS[r.reason] || 'Ignored.'}</p>${extra}`; return; }
+    const p = r.purchase, acc = p.card ? accountForCard(p.card) : null;
+    const none = '<span class="none">Not found</span>';
+    out.innerHTML = `<dl>
+        <dt>Amount</dt><dd class="num">${esc(fmtDetected(p))}</dd>
+        <dt>Merchant</dt><dd>${p.merchant ? esc(p.merchant) : none}</dd>
+        <dt>Card</dt><dd>${p.card ? `•${esc(p.card)} ${acc ? `→ ${esc(acc.name)}` : '<span class="none">(not linked to an account)</span>'}` : none}</dd>
+        <dt>Date</dt><dd>${esc(whenText(p))}</dd>
+        <dt>Category</dt><dd>${esc(suggestCategory(p.merchant))} <span class="none">(suggested)</span></dd>
+      </dl>${extra}`;
+  });
+
   // ---------- Init ----------
   state = load();
   paintThemeBtn();
@@ -2249,7 +2703,18 @@
     commit(state.budgets.length ? `New month: your budgets have reset for ${monthKeyLabel(currentMonth)}.` : '');
   }
   setInterval(checkMonthRollover, 60 * 1000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthRollover(); refreshNotifPerm(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthRollover(); refreshNotifPerm(); refreshPending(); refreshDetect(); } });
+
+  refreshDetect();
+  if (PD) {
+    refreshPending();
+    PD.addListener('purchaseDetected', (p) => {
+      refreshPending();
+      toast(`New purchase detected: ${fmtDetected(p)}${p.merchant ? ' at ' + p.merchant : ''}`);
+    });
+    PD.addListener('purchasesChanged', refreshPending);
+    PD.addListener('purchaseTapped', ({ id }) => openPurchaseById(id)); // also delivered on launch from the notification
+  }
 
   if (NativeApp) {
     // Android back button: close whatever is on top before leaving the app.

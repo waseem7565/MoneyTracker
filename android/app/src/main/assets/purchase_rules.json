@@ -1,0 +1,83 @@
+{
+  "_readme": [
+    "Rules for turning bank SMS / notifications into purchases. Everything here runs on the phone only.",
+    "All patterns are Java regular expressions, matched case-insensitively. In JSON, write a backslash as \\\\ (e.g. \\\\d for a digit).",
+    "Arabic text is normalized before matching: Arabic-Indic digits become 0-9, alef forms (أ إ آ) become ا, ى becomes ي and ة becomes ه. Write Arabic patterns in that normalized form.",
+    "To add a bank: add an entry to \"banks\". \"senders\" are SMS sender IDs and \"packages\" are Android app ids (for notifications); both are matched case-insensitively.",
+    "Each bank pattern can capture any of these named groups: (?<amount>...), (?<currency>...), (?<merchant>...), (?<card>...), (?<date>...), (?<time>...). Fields a pattern doesn't capture are filled in by the generic rules below.",
+    "Bank patterns run first. If none match, the generic rules are used, so a bank only needs an entry when the generic rules get its messages wrong."
+  ],
+  "version": 1,
+  "defaultCurrency": "SAR",
+
+  "otpPatterns": [
+    "\\botp\\b", "one[- ]?time", "verification", "passcode", "password",
+    "\\b(activation|security|auth|authentication|login|access|confirmation|secret) code\\b", "\\bcode\\s*(is|:)", "do not share",
+    "رمز", "كلمه (ال)?مرور", "كلمه السر", "الرقم السري", "لمره واحده", "للتحقق", "التحقق", "لا تشارك"
+  ],
+
+  "purchasePatterns": [
+    "purchase", "\\bpos\\b", "\\bspent\\b", "\\bpaid\\b", "payment", "\\bdebit(ed)?\\b", "\\bcharged\\b", "online", "apple ?pay", "mada ?pay",
+    "شراء", "مشتريات", "خصم", "دفع", "مدفوعات", "سداد", "نقاط البيع", "عمليه"
+  ],
+
+  "ignorePatterns": [
+    "refund", "revers", "credited", "deposit", "\\breceived\\b", "incoming", "salary", "declined", "rejected", "\\bfailed\\b", "unsuccessful",
+    "insufficient", "\\batm\\b", "cash withdrawal", "transfer", "\\bcancell?ed\\b", "\\bcancellation\\b",
+    "استرداد", "استرجاع", "ايداع", "وارده", "راتب", "مرفوض", "رفض", "لم تتم", "فشل", "غير كاف", "صراف", "سحب نقدي", "حواله", "تحويل", "تم الغاء", "ملغاه", "ملغي"
+  ],
+
+  "balancePatterns": [
+    "balance", "\\bbal\\b", "available", "\\bavail", "limit", "remaining", "outstanding", "\\bdue\\b",
+    "رصيد", "المتاح", "المتبقي", "المستحق", "الحد"
+  ],
+
+  "amountLabels": [
+    "amount", "\\bamt\\b", "value", "purchase", "\\bspent\\b", "\\bpaid\\b",
+    "مبلغ", "بمبلغ", "المبلغ", "قيمه", "بقيمه", "شراء", "(?:^|\\s)ب\\s*$"
+  ],
+
+  "currencies": {
+    "SAR": ["SAR", "SR", "S.R", "S.R.", "ريال سعودي", "ريال", "ر.س", "ر س", "رس"],
+    "USD": ["USD", "US$", "$", "دولار امريكي", "دولار"],
+    "EUR": ["EUR", "€", "يورو"],
+    "GBP": ["GBP", "£", "جنيه استرليني"],
+    "AED": ["AED", "درهم اماراتي", "درهم", "د.ا"],
+    "KWD": ["KWD", "دينار كويتي", "د.ك"],
+    "BHD": ["BHD", "دينار بحريني", "د.ب"],
+    "QAR": ["QAR", "ريال قطري", "ر.ق"],
+    "OMR": ["OMR", "ريال عماني", "ر.ع"],
+    "JOD": ["JOD", "دينار اردني"],
+    "EGP": ["EGP", "جنيه مصري", "جنيه"],
+    "TRY": ["TRY", "TL", "ليره تركيه"]
+  },
+
+  "merchantLabels": ["merchant", "at", "from", "store", "shop", "place", "location", "لدي", "لدى", "من", "عند", "التاجر", "المتجر", "تاجر", "متجر", "المكان", "في"],
+  "merchantInlinePatterns": ["\\bat\\b", "@", "لدي", "عند", "\\bfrom\\b", "من"],
+  "merchantStopPatterns": [
+    "\\s+on\\s", "\\s+using\\b", "\\s+with\\b", "\\s+via\\b", "\\s+by\\b", "\\s+card\\b", "\\s+ref\\b",
+    "\\s+ب?بطاقه", "\\s+عبر", "\\s+بتاريخ", "\\s+في\\s+\\d", "\\s+رصيد", "\\s+balance", "\\s+يوم", "\\s+الساعه", "\\s+بمبلغ", "\\s+مبلغ",
+    "\\s+\\d{1,4}[/.-]\\d{1,2}", "\\s+\\d{1,2}:\\d{2}", "[.;,،؛]\\s", "[.;,،؛]$"
+  ],
+  "merchantRejectPatterns": ["^(your|you|the)\\b", "^(account|card|a/c)\\b", "^ب?(بطاقه|بطاقتك|حساب|حسابك|رصيد|رقم)", "^[*xX•#\\d\\s]+$", "^\\W*$"],
+
+  "cardLabels": ["card", "card no", "card number", "mada", "visa", "mastercard", "credit card", "debit card", "account", "a/c", "acc",
+                 "بطاقه", "البطاقه", "بطاقه مدي", "مدي", "فيزا", "ماستركارد", "ائتمانيه", "الحساب", "حساب", "رقم البطاقه", "رقم الحساب"],
+  "cardPatterns": [
+    "(?:[*•]+|x{2,})\\s?(\\d{4})(?![\\d/.:-])",
+    "ending\\s*(?:in|with)?\\s*[:#]?\\s*(\\d{4})(?![\\d/.:-])",
+    "(?:منتهيه|تنتهي|المنتهيه)\\s*(?:ب|بالرقم)?\\s*(\\d{4})(?![\\d/.:-])",
+    "(?:card|mada|visa|mastercard|بطاقه|مدي|فيزا|ماستركارد|حساب)[^\\d\\n]{0,15}?(\\d{4})(?![\\d/.:-])"
+  ],
+
+  "banks": [
+    {
+      "name": "Example Bank (template: copy this entry for a new bank)",
+      "senders": ["EXAMPLE-BANK"],
+      "packages": ["com.example.bankapp"],
+      "patterns": [
+        "Purchase of (?<currency>[A-Z]{3}) (?<amount>[\\d,]+(?:\\.\\d+)?) at (?<merchant>.+?) with card \\*(?<card>\\d{4}) on (?<date>[\\d/-]+) (?<time>\\d{1,2}:\\d{2})"
+      ]
+    }
+  ]
+}

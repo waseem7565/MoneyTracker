@@ -46,3 +46,11 @@ After editing `index.html`, run `npm run sync` to copy the change into the Andro
 The debug APK is signed with a debug key, so you can sideload it onto a phone (allow "install unknown apps"). To publish on Google Play, build a signed release (`./gradlew bundleRelease` with your own keystore) instead.
 
 App icons and splash screens are generated from `assets/` with `npx @capacitor/assets generate --android`.
+
+### Automatic purchase detection (Android)
+
+The app can detect card purchases in bank SMS, and optionally in bank-app notifications, then offer them as ready-to-save expenses. Turn it on under **Accounts → Automatic purchase detection** and add your bank's SMS sender name.
+
+- Native code lives in `android/app/src/main/java/com/myname/expensetracker/purchases/`: `SmsReceiver` (works while the app is closed), `BankNotificationListener` (optional; needs "Notification access"), `PurchaseParser`, `PurchaseStore` (on-device storage and de-duplication) and `PurchaseDetectionPlugin` (the bridge to `index.html`).
+- Only messages from the senders and apps you choose are read. One-time passwords and verification codes are never processed. Messages never leave the phone, and only the extracted details (amount, currency, merchant, card's last 4 digits, date/time) are stored.
+- **Adding a bank:** parsing rules are in `android/app/src/main/assets/purchase_rules.json`. The generic rules handle most Arabic and English alerts. If your bank's format is parsed wrongly, add an entry to `banks` with its sender IDs and a regular expression that uses named groups (`amount`, `currency`, `merchant`, `card`, `date`, `time`), then add a sample message to `android/app/src/test/.../PurchaseParserTest.java` and run `./gradlew testDebugUnitTest` in `android/`. You can also try a message on the phone with **Test with a sample message** in settings.
