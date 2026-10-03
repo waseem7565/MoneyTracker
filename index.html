@@ -814,6 +814,30 @@
   .ad-item .swipe-del { visibility: hidden; }
   .ad-item.swiping .swipe-del { visibility: visible; }
   .ad-day-head { background: none; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 12px 14px 4px; }
+  /* Activity, by month: a header per month (sticky below the top bar while you scroll through it) that folds the month away. */
+  .tx-month { scroll-margin-top: var(--topbar-h, 0px); }
+  .tx-month + .tx-month { margin-top: 6px; }
+  .tx-month-head {
+    position: sticky; top: var(--topbar-h, 0px); z-index: 5;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; column-gap: 10px; row-gap: 2px; align-items: center;
+    width: calc(100% + 32px); margin: 0 -16px; padding: 10px 18px; border: 0;
+    background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    color: var(--text); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .tx-month-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tx-month-name { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx-month-net { font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .tx-month-net.pos { color: var(--pos); }
+  .tx-month-head .ico { grid-row: 1; grid-column: 3; width: 18px; height: 18px; color: var(--muted); transition: transform .25s ease; }
+  .tx-month-head[aria-expanded="true"] .ico { transform: rotate(180deg); }
+  .tx-month-sub { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 10px; padding-right: 28px; }
+  .tx-month-count { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .tx-month-totals { margin-left: auto; text-align: right; font-size: 12px; color: var(--text-2); }
+  .tx-month-totals span { white-space: nowrap; }
+  .tx-month-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease; }
+  .tx-month-panel.open { grid-template-rows: 1fr; }
+  .tx-month-panel > div { min-height: 0; overflow: hidden; }
+  @media (prefers-reduced-motion: reduce) { .tx-month-panel, .tx-month-head .ico { transition: none; } }
 
   /* Account details: In / Out / Net in one compact row. */
   .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
@@ -1097,7 +1121,7 @@
       <span id="txCount"></span>
       <span class="num" id="txTotals"></span>
     </div>
-    <ul class="card tx-list" id="txList"></ul>
+    <div class="tx-months" id="txList"></div>
   </section>
 
   <!-- BUDGETS -->
@@ -2033,7 +2057,10 @@
     accountId: null, // account shown on the Account details page
     accRange: 'month',
     accFilters: { q: '', category: 'all', type: 'all' },
-    filters: { q: '', account: 'all', category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' }
+    filters: { q: '', account: 'all', category: 'all', type: 'all', from: '', to: '', sort: 'date-desc' },
+    txMonthsOpen: {}, // Activity months opened or closed by hand (month key -> open), while the app is open
+    txMonthsOpenFiltered: {}, // the same while searching or filtering; starts over with each new search or filter
+    txMonthsFilterKey: ''
   };
 
   // ---------- Rendering ----------
@@ -2201,6 +2228,10 @@
     return list;
   }
 
+  // Activity: is a search or filter narrowing the list (the sort order doesn't count)?
+  const txFilterKey = () => { const f = ui.filters; return [f.q.trim().toLowerCase(), f.account, f.category, f.type, f.from, f.to].join('|'); };
+  const txFiltering = () => txFilterKey() !== '|all|all|all||';
+
   function renderTransactions() {
     const list = filteredTransactions();
     const spent = list.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
@@ -2208,12 +2239,73 @@
     $('#txCount').textContent = `${list.length} transaction${list.length === 1 ? '' : 's'}`;
     $('#txTotals').textContent = list.length ? `Out ${fmt(spent)} · In ${fmt(earned)}` : '';
     if (!list.length) {
-      $('#txList').innerHTML = `<li class="empty">${state.transactions.length ? 'No transactions match your filters.' : 'No transactions yet. Tap + to add one.'}</li>`;
+      $('#txList').innerHTML = `<div class="card"><div class="empty">${state.transactions.length ? 'No transactions match your filters.' : 'No transactions yet. Tap + to add one.'}</div></div>`;
       return;
     }
     const viewed = ui.filters.account !== 'all' ? accById(ui.filters.account) : null;
-    $('#txList').innerHTML = list.map((t) => txRow(t, viewed)).join('');
+    // Searching or filtering: every month with matches starts open (a new search or filter starts over).
+    const sort = ui.filters.sort, filtering = txFiltering();
+    const filterKey = txFilterKey();
+    if (filterKey !== ui.txMonthsFilterKey) { ui.txMonthsFilterKey = filterKey; ui.txMonthsOpenFiltered = {}; }
+    const opened = filtering ? ui.txMonthsOpenFiltered : ui.txMonthsOpen;
+    const thisMonth = monthKey();
+    const byDate = sort.startsWith('date');
+    // Months newest first ("Oldest first" turns them around); inside a month the chosen order, in day groups when by date.
+    const months = [];
+    list.forEach((t) => { const k = t.date.slice(0, 7); let m = months.find((x) => x.key === k); if (!m) months.push(m = { key: k, txs: [] }); m.txs.push(t); });
+    months.sort((a, b) => (sort === 'date-asc' ? 1 : -1) * a.key.localeCompare(b.key));
+    const outIn = (txs) => ({
+      out: round2(txs.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)),
+      in: round2(txs.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0))
+    });
+    const signed = (n) => `${n >= 0 ? '+' : '−'}${fmt(Math.abs(n))}`;
+    $('#txList').innerHTML = months.map((m) => {
+      const open = opened[m.key] ?? (filtering || m.key === thisMonth);
+      const tot = outIn(m.txs), net = round2(tot.in - tot.out);
+      let body;
+      if (byDate) {
+        const days = [];
+        m.txs.forEach((t) => { const d = days[days.length - 1]; if (d && d.date === t.date) d.txs.push(t); else days.push({ date: t.date, txs: [t] }); });
+        body = days.map((d) => {
+          const dt = outIn(d.txs);
+          return `<div class="card ad-day"><div class="ad-day-head"><span>${esc(dayFmt.format(parseISO(d.date)))}</span><span class="num">${esc(signed(round2(dt.in - dt.out)))}</span></div>
+            <ul class="tx-list">${d.txs.map((t) => txRow(t, viewed)).join('')}</ul></div>`;
+        }).join('');
+      } else {
+        body = `<ul class="card tx-list">${m.txs.map((t) => txRow(t, viewed)).join('')}</ul>`;
+      }
+      const n = m.txs.length;
+      return `<section class="tx-month" data-month="${m.key}">
+        <button type="button" class="tx-month-head" aria-expanded="${open}" aria-controls="txm-${m.key}">
+          <span class="tx-month-name">${esc(monthYearFmt.format(parseISO(`${m.key}-01`)))}</span>
+          <span class="tx-month-net num ${net >= 0 ? 'pos' : 'neg'}">Net ${esc(signed(net))}</span>
+          <svg class="ico" aria-hidden="true"><use href="#i-chev-down"/></svg>
+          <span class="tx-month-sub"><span class="tx-month-count">${n} transaction${n === 1 ? '' : 's'}</span>
+            <span class="tx-month-totals num"><span>Out ${esc(fmt(tot.out))}</span> · <span>In ${esc(fmt(tot.in))}</span></span></span>
+        </button>
+        <div class="tx-month-panel${open ? ' open' : ''}" id="txm-${m.key}"${open ? '' : ' inert'}><div>${body}</div></div>
+      </section>`;
+    }).join('');
   }
+
+  // Month headers stick just below the top bar, whose height depends on the phone (status bar) and the page title.
+  const syncTopbarHeight = () => document.documentElement.style.setProperty('--topbar-h', `${$('.topbar').offsetHeight}px`);
+  syncTopbarHeight();
+  new ResizeObserver(syncTopbarHeight).observe($('.topbar'));
+
+  // Tap a month header to fold it away or open it again (remembered while the app is open).
+  $('#txList').addEventListener('click', (e) => {
+    const head = e.target.closest('.tx-month-head');
+    if (!head) return;
+    const sec = head.closest('.tx-month'), panel = sec.querySelector('.tx-month-panel');
+    const open = head.getAttribute('aria-expanded') !== 'true';
+    head.setAttribute('aria-expanded', String(open));
+    panel.classList.toggle('open', open);
+    panel.inert = !open;
+    (txFiltering() ? ui.txMonthsOpenFiltered : ui.txMonthsOpen)[sec.dataset.month] = open;
+    // Closing a month whose header is stuck at the top: bring the header back to where the month starts.
+    if (!open && sec.getBoundingClientRect().top < $('.topbar').offsetHeight) sec.scrollIntoView({ block: 'start', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+  });
 
   function renderAccounts() {
     $('#accReorder').hidden = state.accounts.length < 2 && !ui.reorder;
