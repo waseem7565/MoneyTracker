@@ -243,6 +243,32 @@
   /* With a mouse the box follows the pointer and hides when it leaves the chart, so it never needs to be clicked. */
   @media (hover: hover) and (pointer: fine) { .chart-tip { pointer-events: none; } }
   @media (prefers-reduced-motion: reduce) { .chart-tip { transition: none; } }
+  /* Balance over time: the account list under the chart folds away behind one "Accounts" row. */
+  .line-legend-toggle {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; margin-top: 10px; padding: 8px 2px;
+    border: 0; border-top: 1px solid var(--border); background: none; color: var(--text); font: inherit; font-size: 14px; font-weight: 700;
+    text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .line-legend-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+  .line-legend-count {
+    display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 7px; margin-right: auto; border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text-2); font-size: 12px; font-weight: 700;
+    font-variant-numeric: tabular-nums; transition: opacity .2s ease;
+  }
+  .line-legend-toggle[aria-expanded="true"] .line-legend-count { opacity: 0; }
+  .line-legend-toggle .ico { width: 18px; height: 18px; color: var(--muted); transition: transform .25s ease; }
+  .line-legend-toggle[aria-expanded="true"] .ico { transform: rotate(180deg); }
+  .line-legend-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .25s ease; }
+  .line-legend-panel.open { grid-template-rows: 1fr; }
+  .line-legend-panel > div { min-height: 0; overflow: hidden; }
+  .line-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; padding: 4px 0 2px; }
+  .line-legend button {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0; border: 0; background: none;
+    color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .line-legend button[aria-pressed="false"] { text-decoration: line-through; }
+  .line-legend i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  @media (prefers-reduced-motion: reduce) { .line-legend-panel, .line-legend-toggle .ico, .line-legend-count { transition: none; } }
   @media (max-width: 820px) { .charts { grid-template-columns: 1fr; } }
 
   .donut-wrap { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; align-items: center; }
@@ -1029,6 +1055,12 @@
           <h3>Balance over time</h3>
           <div class="sub" id="lineSub"></div>
           <div class="chart-box"><canvas id="lineChart" role="img" aria-label="Line chart of account balances over time"></canvas></div>
+          <div id="lineLegendWrap" hidden>
+            <button type="button" class="line-legend-toggle" id="lineLegendToggle" aria-expanded="false" aria-controls="lineLegendPanel">
+              <span>Accounts</span><span class="line-legend-count" id="lineLegendCount"></span><svg class="ico" aria-hidden="true"><use href="#i-chev-down"/></svg>
+            </button>
+            <div class="line-legend-panel" id="lineLegendPanel"><div><div class="line-legend" id="lineLegend"></div></div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1530,6 +1562,7 @@
   // ---------- Constants ----------
   const STORE_KEY = 'moneytracker.v1';
   const THEME_KEY = 'moneytracker.theme';
+  const LINE_LEGEND_KEY = 'moneytracker.balanceAccountsOpen'; // "Balance over time" account list left open
   const DEFAULT_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Other'];
   const ACC_TYPES = { checking: 'Checking', savings: 'Savings', credit: 'Credit card', cash: 'Cash' };
   // Validated categorical palette (fixed order; colors follow the entity, never its rank).
@@ -2789,6 +2822,39 @@
     return { text2, grid, surface, muted, tooltip };
   }
 
+  // ---------- "Balance over time": collapsible account list ----------
+  // Replaces Chart.js's own legend (which grew the chart card with every account). Tapping an account still shows or
+  // hides its line; whether the list is open is remembered.
+  function renderLineLegend(datasets) {
+    $('#lineLegendWrap').hidden = datasets.length < 2; // like the old legend: only with more than one account
+    $('#lineLegendCount').textContent = datasets.length; // the badge in "Accounts (4)"
+    $('#lineLegendToggle').setAttribute('aria-label', `Accounts, ${datasets.length}`);
+    $('#lineLegend').innerHTML = datasets.map((d, i) =>
+      `<button type="button" data-i="${i}" aria-pressed="true"><i style="background:${esc(d.borderColor)}"></i>${esc(d.label)}</button>`).join('');
+  }
+
+  function setLineLegendOpen(open) {
+    $('#lineLegendToggle').setAttribute('aria-expanded', String(open));
+    $('#lineLegendPanel').classList.toggle('open', open);
+    $('#lineLegendPanel').inert = !open; // closed: its buttons can't be reached with the keyboard
+  }
+
+  setLineLegendOpen((() => { try { return localStorage.getItem(LINE_LEGEND_KEY) === '1'; } catch (e) { return false; } })());
+  $('#lineLegendToggle').addEventListener('click', () => {
+    const open = $('#lineLegendToggle').getAttribute('aria-expanded') !== 'true';
+    setLineLegendOpen(open);
+    try { localStorage.setItem(LINE_LEGEND_KEY, open ? '1' : '0'); } catch (e) {}
+  });
+  $('#lineLegend').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-i]');
+    const chart = charts.line;
+    if (!b || !chart) return;
+    const i = Number(b.dataset.i), show = !chart.isDatasetVisible(i);
+    chart.setDatasetVisibility(i, show);
+    chart.update();
+    b.setAttribute('aria-pressed', String(show));
+  });
+
   function renderCharts() {
     if (!window.Chart) {
       ['donutChart', 'barChart', 'lineChart', 'budgetChart'].forEach((id) => {
@@ -2895,11 +2961,12 @@
           x: { grid: { display: false }, border: { color: grid }, ticks: { color: muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 7, callback: function (v) { return shortDateFmt.format(parseISO(this.getLabelForValue(v))); } } }
         },
         plugins: {
-          legend: { display: datasets.length > 1, position: 'bottom', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, boxHeight: 10, padding: 14, color: text2 } },
+          legend: { display: false }, // the collapsible "Accounts" list below the chart (see renderLineLegend)
           tooltip: { ...tooltip, callbacks: { title: (items) => dateFmt.format(parseISO(items[0].label)), label: (ctx) => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } }
         }
       }
     });
+    renderLineLegend(datasets);
 
     // --- Budgets: limit vs. actual this month (independent of the insight filters) ---
     if (state.budgets.length) {
