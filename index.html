@@ -2692,17 +2692,19 @@
       tip = { el, timer: 0, shownAt: 0 };
       chartTips.set(chart, tip);
     }
-    const preferLine = chart.config.type === 'line';
-    const rows = tooltip.body.map((b, i) => {
+    const preferLine = chart.config.type === 'line', donut = chart.config.type === 'doughnut';
+    const items = tooltip.body.map((b, i) => {
       const text = b.lines.join(' ').trim();
       const cut = text.lastIndexOf(': ');
       const c = tooltip.labelColors[i] || {};
       const fill = typeof c.backgroundColor === 'string' ? c.backgroundColor : '';
       const color = (preferLine || !fill || fill === 'transparent') && typeof c.borderColor === 'string' ? c.borderColor : fill;
-      return `<div class="chart-tip-row"><span class="chart-tip-dot" style="background:${esc(color)}"></span>` +
-        `<span class="chart-tip-name">${esc(cut > 0 ? text.slice(0, cut) : text)}</span><span class="chart-tip-val">${esc(cut > 0 ? text.slice(cut + 2) : '')}</span></div>`;
-    }).join('');
-    const title = (tooltip.title || []).join(' ').trim();
+      return { color, name: cut > 0 ? text.slice(0, cut) : text, val: cut > 0 ? text.slice(cut + 2) : '' };
+    });
+    const rows = items.map((it) => `<div class="chart-tip-row"><span class="chart-tip-dot" style="background:${esc(it.color)}"></span>` +
+      `<span class="chart-tip-name">${esc(it.name)}</span><span class="chart-tip-val">${esc(it.val)}</span></div>`).join('');
+    let title = (tooltip.title || []).join(' ').trim();
+    if (items.length === 1 && title === items[0].name) title = ''; // e.g. a donut slice: "Food" once, not as title and row
     tip.el.innerHTML = (title ? `<div class="chart-tip-title">${esc(title)}</div>` : '') + rows;
     if (tip.el.hidden) tip.shownAt = performance.now();
     tip.el.hidden = false;
@@ -2713,6 +2715,8 @@
     const left = tw >= bw ? (bw - tw) / 2 : Math.min(Math.max(0, tooltip.caretX - tw / 2), bw - tw);
     let top = tooltip.caretY - th - gap;
     if (top < 0) top = tooltip.caretY + gap;
+    // Donuts: at the top or bottom edge (away from the tapped slice), so the total in the middle stays visible.
+    if (donut) top = tooltip.caretY > bh / 2 ? 0 : bh - th;
     if (top + th > bh) top = Math.max(0, bh - th);
     tip.el.style.left = `${Math.round(left)}px`;
     tip.el.style.top = `${Math.round(top)}px`;
@@ -2733,7 +2737,7 @@
     if (!chart.ctx) return; // destroyed
     chart.tooltip.setActiveElements([], { x: 0, y: 0 });
     chart.setActiveElements([]);
-    chart.draw();
+    chart.update('none'); // draw() alone left the tapped bar or slice highlighted
   }
 
   function hideChartTip(chart) {
